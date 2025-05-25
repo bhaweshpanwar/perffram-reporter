@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pgperffarm-reporter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+
+      html,
+      body {
+        background-color: #f8fafc;
+        scrollbar-width: thin;
+        scrollbar-color: #a0aec0 #ebeef3;
+      }
+    </style>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-white">
+    <!-- Hero Section -->
+    <header class="text-center bg-[#F8F9FA] h-fit">
+      <div class="container mx-auto px-4">
+        <h1
+          class="text-3xl sm:text-2xl md:text-5xl font-light text-[#336791] mb-4 mt-28"
+        >
+          pgperffarm-reporter
+        </h1>
+        <p class="text-lg sm:text-[20px] text-[#4B5563] mb-12 mt-10">
+          Benchmark visualization and commit analysis for PostgreSQL performance
+          testing
+        </p>
+        <a
+          href="Visualizer.html"
+          class="inline-block bg-[#336791] text-white py-4 px-10 rounded-[10px] text-lg md:text-[20px] font-thin mb-28"
+        >
+          Visualize Data
+        </a>
+      </div>
+    </header>
+
+    <!-- Intro Text Section -->
+    <section class="py-12 bg-white">
+      <div class="container mx-auto px-4">
+        <p
+          class="text-left text-gray-700 max-w-3xl mx-auto text-md md:text-[22px] mt-10"
+        >
+          pgperffarm-reporter is an open-source, frontend visualization tool
+          purpose-built for the PostgreSQL Performance Farm. Designed to serve
+          core developers, DBAs, and performance engineers, it enables deep
+          analysis of PostgreSQL benchmark results tied directly to source code
+          commits. With a focus on clarity, traceability, and efficiency,
+          pgperffarm-reporter provides intuitive filtering, real-time commit
+          comparison, and branch-level performance insights. Whether tracking
+          regressions, analyzing code impact across major versions, or auditing
+          system performance over time, the tool helps surface actionable
+          metrics in a lightweight, engineer-friendly interface. Featuring
+          responsive chart visualizations, commit metadata overlays, and
+          structured insights tables, pgperffarm-reporter bridges the gap
+          between raw performance logs and practical engineering decisions — all
+          while aligning with the values and rigor of the PostgreSQL ecosystem.
+        </p>
+      </div>
+    </section>
+
+    <!-- Features Section 1 (Icon Cards) -->
+    <section class="py-12 md:py-16">
+      <div class="container mx-auto px-4">
+        <div class="grid md:grid-cols-3 gap-8">
+          <!-- Feature Card 1 -->
+          <div class="bg-white p-6 border text-left rounded-lg py-12">
+            <div class="flex justify-start mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                xmlns:xlink="http://www.w3.org/1999/xlink"
+                width="36"
+                height="48"
+                viewBox="0 0 36 48"
+              >
+                <path
+                  d="M36 13.5C36 9.35625 32.6438 6 28.5 6C24.3562 6 21 9.35625 21 13.5C21 16.9125 23.2781 19.7906 26.3906 20.7C26.3344 22.2094 25.9969 23.3719 25.3594 24.1594C23.9156 25.9594 20.7375 26.2594 17.3719 26.5688C14.7281 26.8125 11.9906 27.075 9.75 28.1531L9.75 14.6531C12.7969 13.6969 15 10.8563 15 7.5C15 3.35625 11.6437 0 7.5 0C3.35625 0 0 3.35625 0 7.5C0 10.8562 2.20312 13.6969 5.25 14.6531L5.25 33.3375C2.20312 34.3031 0 37.1438 0 40.5C0 44.6438 3.35625 48 7.5 48C11.6437 48 15 44.6438 15 40.5C15 37.3125 13.0125 34.5844 10.2 33.5062C10.4906 33.0187 10.9313 32.5875 11.5969 32.25C13.1156 31.4812 15.3844 31.275 17.7938 31.05C21.75 30.6844 26.2312 30.2625 28.875 26.9812C30.1875 25.35 30.8531 23.25 30.9 20.6156C33.8625 19.6031 36 16.8 36 13.5ZM7.5 6C8.325 6 9 6.675 9 7.5C9 8.325 8.325 9 7.5 9C6.675 9 6 8.325 6 7.5C6 6.675 6.675 6 7.5 6ZM7.5 42C6.675 42 6 41.325 6 40.5C6 39.675 6.675 39 7.5 39C8.325 39 9 39.675 9 40.5C9 41.325 8.325 42 7.5 42ZM28.5 12C29.325 12 30 12.675 30 13.5C30 14.325 29.325 15 28.5 15C27.675 15 27 14.325 27 13.5C27 12.675 27.675 12 28.5 12Z"
+                  fill-rule="nonzero"
+                  transform="matrix(1 0 0 1 0 1.43051e-06)"
+                  fill="rgb(51, 103, 145)"
+                />
+              </svg>
+
+              <!-- A more accurate branch icon -->
+              <!-- <svg class="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20v-6m0 0V4m0 6h10M6 14h2m6 0h2m-6 0V4m0 6H6m6 0h2"></path><circle cx="6" cy="14" r="2"></circle><circle cx="18" cy="14" r="2"></circle><circle cx="10" cy="4" r="2"></circle></svg> -->
+            </div>
+            <h3 class="text-xl font-semibold text-slate-700 mb-2">
+              Branch Comparison
+            </h3>
+            <p class="text-gray-600 text-sm">
+              Visualize and compare performance across PostgreSQL branches
+            </p>
+          </div>
+          <!-- Feature Card 2 -->
+          <div class="bg-white p-6 border text-left rounded-lg py-12">
+            <div class="flex justify-start mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                xmlns:xlink="http://www.w3.org/1999/xlink"
+                width="48"
+                height="36"
+                viewBox="0 0 48 36"
+              >
+                <path
+                  d="M31.2 24L34.8 24C35.4 24 36 23.4 36 22.8L36 10.2C36 9.6 35.4 9 34.8 9L31.2 9C30.6 9 30 9.6 30 10.2L30 22.8C30 23.4 30.6 24 31.2 24ZM40.2 24L43.8 24C44.4 24 45 23.4 45 22.8L45 1.2C45 0.6 44.4 0 43.8 0L40.2 0C39.6 0 39 0.6 39 1.2L39 22.8C39 23.4 39.6 24 40.2 24ZM13.2 24L16.8 24C17.4 24 18 23.4 18 22.8L18 16.2C18 15.6 17.4 15 16.8 15L13.2 15C12.6 15 12 15.6 12 16.2L12 22.8C12 23.4 12.6 24 13.2 24ZM22.2 24L25.8 24C26.4 24 27 23.4 27 22.8L27 4.2C27 3.6 26.4 3 25.8 3L22.2 3C21.6 3 21 3.6 21 4.2L21 22.8C21 23.4 21.6 24 22.2 24ZM46.5 30L6 30L6 1.5C6 0.67125 5.32875 0 4.5 0L1.5 0C0.67125 0 0 0.67125 0 1.5L0 33C0 34.6566 1.34344 36 3 36L46.5 36C47.3288 36 48 35.3288 48 34.5L48 31.5C48 30.6712 47.3288 30 46.5 30Z"
+                  fill-rule="nonzero"
+                  transform="matrix(1 0 0 1 0 0)"
+                  fill="rgb(51, 103, 145)"
+                />
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-slate-700 mb-2">
+              Commit Metrics
+            </h3>
+            <p class="text-gray-600 text-sm">
+              View metrics tied to exact commits
+            </p>
+          </div>
+          <!-- Feature Card 3 -->
+          <div class="bg-white p-6 border text-left rounded-lg py-12">
+            <div class="flex justify-start mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                xmlns:xlink="http://www.w3.org/1999/xlink"
+                width="48"
+                height="36"
+                viewBox="0 0 48 36"
+              >
+                <path
+                  d="M46.5 30L6 30L6 1.5C6 0.67125 5.32875 0 4.5 0L1.5 0C0.67125 0 0 0.67125 0 1.5L0 33C0 34.6566 1.34344 36 3 36L46.5 36C47.3288 36 48 35.3288 48 34.5L48 31.5C48 30.6712 47.3288 30 46.5 30ZM43.5 3L32.4319 3C30.4275 3 29.4234 5.42344 30.8409 6.84094L33.8784 9.87844L27 16.7578L20.1216 9.87938C18.9497 8.7075 17.0503 8.7075 15.8794 9.87938L9.43969 16.3191C8.85375 16.905 8.85375 17.8547 9.43969 18.4406L11.5603 20.5613C12.1462 21.1472 13.0959 21.1472 13.6819 20.5613L18 16.2422L24.8784 23.1206C26.0503 24.2925 27.9497 24.2925 29.1206 23.1206L38.1206 14.1206L41.1581 17.1581C42.5756 18.5756 44.9991 17.5716 44.9991 15.5672L44.9991 4.5C45 3.67125 44.3288 3 43.5 3Z"
+                  fill-rule="nonzero"
+                  transform="matrix(1 0 0 1 0 0)"
+                  fill="rgb(51, 103, 145)"
+                />
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-slate-700 mb-2">
+              Performance Trends
+            </h3>
+            <p class="text-gray-600 text-sm">
+              Track improvement or regressions over time
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section 2 (Image Cards with Actual UI Screenshots) -->
+    <!-- <section class="py-12 md:py-16 bg-white mt-8">
+      <p class="text-center text-2xl mb-8">Features</p>
+      <div class="container mx-auto px-4">
+        <div class="grid md:grid-cols-3 gap-8">
+          <div class="bg-white rounded-lg border overflow-hidden">
+            <div class="overflow-hidden h-56">
+              <img
+                src="./line_graph.png"
+                alt="Line chart of TPS over commit history"
+                class="w-full h-full object-cover scale-[1.37]"
+              />
+            </div>
+            <p class="p-4 text-center text-gray-700 text-sm">
+              Line chart of TPS over commit history
+            </p>
+          </div>
+
+          <div class="bg-white rounded-lg border overflow-hidden">
+            <div class="overflow-hidden h-56">
+              <img
+                src="./insights.png"
+                alt="Branch insights showing best/worst commits"
+                class="w-full h-full object-cover translate-y-32 scale-[2.8]"
+              />
+            </div>
+            <p class="p-4 text-center text-gray-700 text-sm">
+              Branch insights showing best/worst commits
+            </p>
+          </div>
+
+          <div class="bg-white rounded-lg border overflow-hidden">
+            <div class="overflow-hidden h-56">
+              <img
+                src="./filters.png"
+                alt="Custom test & machine filters"
+                class="w-full h-full object-cover scale-[0.95] translate-x-[-0.01rem] translate-y-[-0.5rem]"
+              />
+            </div>
+            <p class="p-4 text-center text-gray-700 text-sm">
+              Custom test & machine filters
+            </p>
+          </div>
+        </div>
+      </div>
+    </section> -->
+
+    <!-- Tech Stack Logos Section -->
+    <section class="py-12 md:py-16 bg-white md:mt-28">
+      <div class="container mx-auto px-4">
+        <p class="text-center text-gray-600 text-sm mb-6">
+          Powered by open-source technologies
+        </p>
+        <div class="flex justify-center items-center gap-6 md:gap-36 flex-wrap">
+          <!-- PostgreSQL Logo -->
+          <img
+            src="https://www.postgresql.org/media/img/about/press/elephant.png"
+            alt="PostgreSQL"
+            class="h-12 w-auto grayscale opacity-80 hover:opacity-100 transition"
+          />
+
+          <!-- D3.js Logo -->
+          <img
+            src="https://raw.githubusercontent.com/d3/d3-logo/master/d3.svg"
+            alt="D3.js"
+            class="h-12 w-auto grayscale opacity-80 hover:opacity-100 transition"
+          />
+
+          <!-- Tailwind CSS Logo -->
+          <img
+            src="https://upload.wikimedia.org/wikipedia/commons/d/d5/Tailwind_CSS_Logo.svg"
+            alt="Tailwind CSS"
+            class="h-12 w-auto grayscale opacity-80 hover:opacity-100 transition"
+          />
+
+          <!-- HTML5 Logo -->
+          <img
+            src="https://upload.wikimedia.org/wikipedia/commons/6/61/HTML5_logo_and_wordmark.svg"
+            alt="HTML5"
+            class="h-12 w-auto grayscale opacity-80 hover:opacity-100 transition"
+          />
+
+          <!-- JavaScript Logo -->
+          <img
+            src="https://upload.wikimedia.org/wikipedia/commons/6/6a/JavaScript-logo.png"
+            alt="JavaScript"
+            class="h-12 w-auto grayscale opacity-80 hover:opacity-100 transition"
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- Final CTA Section -->
+    <section class="py-12 md:py-20">
+      <div
+        class="mx-auto bg-[#F8F9FA] rounded-xl shadow-sm px-6 py-12 /* mobile padding */ sm:px-10 sm:py-16 /* tablet */ md:px-20 md:py-24 /* desktop */ max-w-sm sm:max-w-xl lg:max-w-2xl text-center"
+      >
+        <h2 class="text-xl sm:text-2xl font-semibold text-slate-800 mb-6">
+          Explore your benchmark data like never before
+        </h2>
+
+        <a
+          href="Visualizer.html"
+          class="inline-block rounded-lg bg-[#336791] text-white px-6 py-3 text-base /* mobile size */ sm:px-8 sm:py-3.5 sm:text-lg /* tablet */ md:px-10 md:py-4 md:text-xl /* desktop */ transition hover:bg-[#285279]"
+        >
+          Launch Visualizer
+        </a>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-8 text-center pb-28">
+      <div class="container mx-auto px-4">
+        <a
+          href="#"
+          class="inline-flex items-center text-gray-600 hover:text-blue-600 transition duration-300"
+        >
+          <svg
+            class="w-5 h-5 mr-2"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M12 2C6.477 2 2 6.477 2 12c0 4.419 2.865 8.166 6.839 9.489.5.092.682-.217.682-.483 0-.237-.009-.868-.013-1.703-2.782.602-3.369-1.343-3.369-1.343-.454-1.157-1.11-1.465-1.11-1.465-.908-.62.069-.608.069-.608 1.003.074 1.532 1.029 1.532 1.029.891 1.529 2.341 1.089 2.91.833.091-.647.349-1.086.635-1.335-2.22-.251-4.555-1.111-4.555-4.943 0-1.091.39-1.984 1.029-2.682-.103-.252-.446-1.27.098-2.646 0 0 .84-.269 2.75 1.025A9.548 9.548 0 0112 6.836c.85.004 1.705.114 2.505.336 1.909-1.294 2.748-1.025 2.748-1.025.546 1.376.202 2.394.1 2.646.64.698 1.027 1.591 1.027 2.682 0 3.842-2.338 4.687-4.565 4.935.358.307.678.917.678 1.849 0 1.335-.012 2.415-.012 2.741 0 .269.18.579.688.481A10.007 10.007 0 0022 12c0-5.523-4.477-10-10-10z"
+              clip-rule="evenodd"
+            ></path>
+          </svg>
+          View on GitHub
+        </a>
+      </div>
+    </footer>
+  </body>
+</html>

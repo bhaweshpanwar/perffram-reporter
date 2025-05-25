@@ -1,0 +1,1788 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pgperffarm-reporter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        scrollbar-width: thin;
+        scrollbar-color: #a0aec0 #e2e8f0;
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #e2e8f0;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #a0aec0;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #718096;
+      }
+
+      nav {
+        scrollbar-width: thin;
+        scrollbar-color: #a0aec0 #e2e8f0;
+      }
+      main {
+        scrollbar-width: thin;
+
+        scrollbar-color: #a0aec0 #e2e8f0;
+      }
+      div {
+        scrollbar-width: thin;
+
+        scrollbar-color: #a0aec0 #e2e8f0;
+      }
+      .tooltip {
+        position: absolute;
+        opacity: 0;
+        background-color: white;
+        color: #333;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border: 1px solid #e2e8f0;
+        /* pointer-events: none; /*  Removed: will be toggled by JS */
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: nowrap;
+        transition: opacity 0.2s ease-in-out;
+        z-index: 1000;
+        min-width: 300px;
+      }
+      .tooltip .tooltip-date {
+        font-size: 12px;
+        color: #718096;
+        margin-bottom: 10px;
+        padding-bottom: 5px;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .tooltip strong {
+        font-weight: 600;
+        color: #4a5568;
+        display: inline-block;
+        min-width: 100px;
+      }
+      .tooltip .version-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+      .tooltip .version-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+        display: inline-block;
+        flex-shrink: 0;
+      }
+      .tooltip .version-name {
+        flex-grow: 1;
+        margin-right: 10px;
+      }
+      .tooltip .version-value {
+        font-weight: 600;
+        text-align: right;
+      }
+      .tooltip .commit-details {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid #e2e8f0;
+      }
+      .tooltip .commit-message {
+        display: block;
+        margin-top: 5px;
+        max-width: 280px;
+        white-space: normal;
+        color: #718096;
+        font-style: italic;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      .tooltip a {
+        color: #4299e1;
+        text-decoration: none;
+        display: block;
+        margin-top: 8px;
+        font-size: 12px;
+        pointer-events: auto !important; /* Ensure link is always clickable if tooltip is visible */
+      }
+      .tooltip a:hover {
+        text-decoration: underline;
+      }
+
+      .branch-legend {
+        margin-top: 20px;
+        text-align: center;
+      }
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        margin: 0 8px 8px 8px;
+        font-size: 12px;
+        cursor: pointer;
+        opacity: 1;
+        transition: opacity 0.2s;
+        padding: 4px 6px;
+        border-radius: 4px;
+      }
+      .legend-item:hover {
+        background-color: #f3f4f6;
+      }
+      .legend-item.inactive {
+        opacity: 0.4;
+      }
+      .legend-color {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        margin-right: 6px;
+        border-radius: 3px;
+        flex-shrink: 0;
+      }
+
+      .axis path,
+      .axis line {
+        stroke: #d1d5db;
+        shape-rendering: crispEdges;
+      }
+      .axis text {
+        fill: #4b5563;
+        font-size: 11px;
+      }
+      .grid .tick line {
+        stroke: #e5e7eb;
+        stroke-opacity: 0.7;
+      }
+      .grid path {
+        stroke-width: 0;
+      }
+      text.axis-label {
+        fill: #1f2937;
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .branch-pill {
+        display: inline-flex;
+        align-items: center;
+        background-color: #ebf4ff;
+        color: #2563eb;
+        padding: 4px 10px;
+        border-radius: 16px;
+        font-size: 0.875rem;
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+      }
+      .branch-pill-remove {
+        margin-left: 0.75rem;
+        cursor: pointer;
+        font-weight: bold;
+        color: #1d4ed8;
+      }
+      .branch-pill-remove:hover {
+        color: #1e3a8a;
+      }
+      #selectedBranchesDisplay .branch-pill:last-child {
+        margin-right: 0;
+      }
+      input[type='date']::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: 0.6;
+        transition: opacity 0.2s;
+      }
+      input[type='date']::-webkit-calendar-picker-indicator:hover {
+        opacity: 1;
+      }
+      .view-mode-active {
+        background-color: #3b82f6 !important;
+        color: white !important;
+        border-color: #2563eb !important;
+      }
+      .view-mode-inactive {
+        background-color: white !important;
+        color: #374151 !important;
+      }
+      .view-mode-inactive:hover {
+        background-color: #f9fafb !important;
+      }
+      .clickable-commit:hover {
+        text-decoration: underline !important;
+      }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-white" style="display: none">
+    <!-- Initially hidden -->
+    <div
+      id="loadingIndicator"
+      style="
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 20px;
+        z-index: 9999;
+        background-color: rgba(255, 255, 255, 0.8);
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      "
+    >
+      Loading data...
+    </div>
+    <div
+      id="errorDisplay"
+      style="
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        width: 80%;
+        max-width: 600px;
+        background-color: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        z-index: 9998;
+      "
+    >
+      <h2
+        id="errorHeading"
+        style="
+          color: #d32f2f;
+          margin-bottom: 16px;
+          font-size: 22px;
+          font-weight: 600;
+        "
+      ></h2>
+      <p id="errorMessage" style="font-size: 16px; margin-bottom: 24px"></p>
+      <button
+        id="reloadButton"
+        style="
+          padding: 10px 20px;
+          font-size: 16px;
+          cursor: pointer;
+          background-color: #336791;
+          color: white;
+          border: none;
+          border-radius: 4px;
+        "
+      >
+        Reload Page
+      </button>
+    </div>
+
+    <div class="relative md:flex h-screen overflow-hidden">
+      <div
+        id="sidebarOverlay"
+        class="fixed inset-0 bg-black bg-opacity-50 z-20 hidden md:hidden"
+      ></div>
+      <nav
+        id="sidebar"
+        class="bg-[#F6F7F9] text-black w-[80%] md:w-80 lg:w-92 xl:w-[350px] py-7 px-1.5 sm:px-4 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 ease-in-out z-30 flex flex-col h-screen overflow-y-auto"
+      >
+        <div class="flex-shrink-0">
+          <h2 class="text-xl font-semibold text-black px-4 mb-20">
+            Filters & Customization
+          </h2>
+          <div class="space-y-8 px-2.5 sm:px-4">
+            <div>
+              <label
+                for="selectTest"
+                class="block text-sm font-medium text-black mb-1"
+                >Select Test</label
+              >
+              <select
+                id="selectTest"
+                name="selectTest"
+                class="mt-1 block w-full px-4 py-2 text-base border rounded-md border-[#E5E7EB] focus:outline-none sm:text-sm h-10"
+              >
+                <option value="">Loading tests...</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-black mb-1"
+                >Date Range</label
+              >
+              <div class="flex space-x-2">
+                <div class="w-1/2">
+                  <label for="dateFrom" class="block text-xs text-gray-500"
+                    >Start</label
+                  >
+                  <input
+                    type="date"
+                    id="dateFrom"
+                    name="dateFrom"
+                    class="mt-1 block w-full pl-3 pr-1 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm"
+                  />
+                </div>
+                <div class="w-1/2">
+                  <label for="dateTo" class="block text-xs text-gray-500"
+                    >End</label
+                  >
+                  <input
+                    type="date"
+                    id="dateTo"
+                    name="dateTo"
+                    class="mt-1 block w-full pl-3 pr-1 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm"
+                  />
+                </div>
+              </div>
+            </div>
+            <div>
+              <label
+                for="selectMachine"
+                class="block text-sm font-medium text-black mb-1"
+                >Select Machine</label
+              >
+              <select
+                id="selectMachine"
+                name="selectMachine"
+                class="mt-1 block w-full px-4 py-2 text-base border rounded-md border-[#E5E7EB] focus:outline-none sm:text-sm h-10"
+              >
+                <option value="">Loading machines...</option>
+              </select>
+            </div>
+            <div>
+              <label
+                for="chooseBranches"
+                class="block text-sm font-medium text-black mb-1"
+                >Choose Branches</label
+              >
+              <select
+                id="chooseBranches"
+                name="chooseBranches"
+                class="mt-1 block w-full px-4 py-2 text-base border rounded-md border-[#E5E7EB] focus:outline-none sm:text-sm h-10"
+              >
+                <option value="">Select test/machine first</option>
+              </select>
+              <div
+                id="selectedBranchesDisplay"
+                class="mt-2.5 flex flex-wrap"
+              ></div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-black mb-1.5"
+                >View Mode</label
+              >
+              <div class="flex mt-1">
+                <button
+                  id="viewModeChart"
+                  type="button"
+                  class="view-mode-active px-2 py-1 text-sm text-white bg-[#326690] w-20 h-10"
+                >
+                  Chart
+                </button>
+                <button
+                  id="viewModeTable"
+                  type="button"
+                  class="view-mode-inactive -ml-px px-2 py-1 text-sm font-medium bg-[#E5E7EB] w-20 h-10"
+                >
+                  Table
+                </button>
+              </div>
+            </div>
+            <div class="pt-2 space-y-3 mt-16">
+              <button
+                id="applyFilters"
+                type="button"
+                class="w-full text-white bg-[#326690] px-4 py-2.5 rounded-md text-sm font-light"
+              >
+                APPLY
+              </button>
+              <button
+                id="resetFilters"
+                type="button"
+                class="w-full bg-gray-200 text-gray-700 px-4 py-2.5 rounded-md text-sm font-light hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 border border-gray-300 shadow-sm"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+      <main
+        id="mainContent"
+        class="flex-1 p-4 md:p-6 transition-all duration-300 ease-in-out overflow-y-auto h-screen bg-white"
+      >
+        <div class="flex justify-between items-center mb-3">
+          <div class="flex items-center">
+            <button
+              id="sidebarToggle"
+              class="md:hidden p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+              aria-label="Toggle sidebar"
+            >
+              <svg
+                class="h-6 w-6"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="1.5"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
+                />
+              </svg>
+            </button>
+            <h1
+              class="text-xl sm:text-2xl font-semibold text-[#326690] ml-2 md:ml-0"
+            >
+              pgperffarm-reporter
+            </h1>
+          </div>
+        </div>
+        <div id="chartView" class="bg-white p-4 sm:p-6">
+          <div
+            class="flex flex-col sm:flex-row justify-between items-start mb-4"
+          >
+            <div>
+              <h2
+                id="chartTitle"
+                class="text-lg sm:text-xl font-semibold text-gray-800"
+              >
+                Performance Chart
+              </h2>
+              <div
+                id="activeFiltersDisplay"
+                class="text-xs text-gray-500 mt-1"
+              ></div>
+            </div>
+            <div class="flex space-x-2 mt-2 sm:mt-0">
+              <button
+                id="downloadChartBtn"
+                title="Download Chart"
+                class="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke-width="1.5"
+                  stroke="currentColor"
+                  class="w-5 h-5"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+                  />
+                </svg>
+              </button>
+              <button
+                id="fullscreenChartBtn"
+                title="Fullscreen"
+                class="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke-width="1.5"
+                  stroke="currentColor"
+                  class="w-5 h-5"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9.75 9.75M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L14.25 9.75M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9.75 14.25m10.5 6L14.25 14.25"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div id="chartContainer" class="relative min-h-[300px]">
+            <svg id="chart" width="100%"></svg>
+          </div>
+          <div id="legend" class="branch-legend mt-4"></div>
+          <div id="tooltip" class="tooltip" style="pointer-events: none"></div>
+          <div class="text-xs text-gray-500 mt-4 space-y-1">
+            <p>
+              <span class="inline-block mr-1 align-middle"
+                ><svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  class="w-4 h-4"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z"
+                    clip-rule="evenodd"
+                  /></svg
+              ></span>
+              Click on any data point to view detailed commit information.
+            </p>
+            <p>
+              <span class="inline-block mr-1 align-middle"
+                ><svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  class="w-4 h-4"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z"
+                    clip-rule="evenodd"
+                  /></svg
+              ></span>
+              Click on any branch in the legend to select/deselect it.
+            </p>
+          </div>
+        </div>
+        <div id="tableViewContainer" class="hidden bg-white p-4 sm:p-6 mt-6">
+          <h2 class="text-xl font-semibold text-gray-800 mb-4">
+            Data Table View
+          </h2>
+          <div id="tableView" class="overflow-x-auto">
+            <!-- Table will be rendered here by JS -->
+          </div>
+        </div>
+        <div class="mt-8 bg-white p-4 sm:p-6">
+          <h2 class="text-xl font-semibold text-[#326690] mb-4">Insights</h2>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th
+                    scope="col"
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Branch
+                  </th>
+                  <th
+                    scope="col"
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Average Metric
+                  </th>
+                  <th
+                    scope="col"
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Performance Trend
+                  </th>
+                  <th
+                    scope="col"
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Best Metric (Commit)
+                  </th>
+                  <th
+                    scope="col"
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Worst Metric (Commit)
+                  </th>
+                  <th
+                    scope="col"
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[250px]"
+                  >
+                    Summary
+                  </th>
+                </tr>
+              </thead>
+              <tbody
+                id="insightsTableBody"
+                class="bg-white divide-y divide-gray-200 text-sm"
+              >
+                <!-- Insights rows will be rendered here by JS -->
+                <tr>
+                  <td colspan="6" class="text-center py-4 text-gray-500">
+                    Select filters and apply to see insights.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <footer class="text-center py-8 text-xs text-gray-500">
+          pgperffarm-reporter - Performance Visualization Tool
+        </footer>
+      </main>
+    </div>
+    <script>
+      // Global state variables
+      let allData = [];
+      let filteredDataByTestMachine = []; // Data filtered by current test and machine
+      let currentFilters = {
+        test: null,
+        machine: null,
+        branches: [], // Array of selected branch names
+        dateRange: [null, null], // [startDate, endDate]
+      };
+
+      // DOM Elements (cached for performance)
+      const DOMElements = {};
+
+      function cacheDOMElements() {
+        DOMElements.body = document.body;
+        DOMElements.loadingIndicator =
+          document.getElementById('loadingIndicator');
+        DOMElements.errorDisplay = document.getElementById('errorDisplay');
+        DOMElements.errorHeading = document.getElementById('errorHeading');
+        DOMElements.errorMessage = document.getElementById('errorMessage');
+        DOMElements.reloadButton = document.getElementById('reloadButton');
+        DOMElements.sidebar = document.getElementById('sidebar');
+        DOMElements.sidebarToggle = document.getElementById('sidebarToggle');
+        DOMElements.sidebarOverlay = document.getElementById('sidebarOverlay');
+        DOMElements.selectTestEl = document.getElementById('selectTest');
+        DOMElements.dateFromEl = document.getElementById('dateFrom');
+        DOMElements.dateToEl = document.getElementById('dateTo');
+        DOMElements.selectMachineEl = document.getElementById('selectMachine');
+        DOMElements.chooseBranchesEl =
+          document.getElementById('chooseBranches');
+        DOMElements.selectedBranchesDisplayEl = document.getElementById(
+          'selectedBranchesDisplay'
+        );
+        DOMElements.applyFiltersBtn = document.getElementById('applyFilters');
+        DOMElements.resetFiltersBtn = document.getElementById('resetFilters');
+        DOMElements.viewModeChartBtn = document.getElementById('viewModeChart');
+        DOMElements.viewModeTableBtn = document.getElementById('viewModeTable');
+        DOMElements.chartViewEl = document.getElementById('chartView');
+        DOMElements.tableViewContainerEl =
+          document.getElementById('tableViewContainer');
+        DOMElements.tableViewEl = document.getElementById('tableView');
+        DOMElements.chartTitleEl = document.getElementById('chartTitle');
+        DOMElements.activeFiltersDisplayEl = document.getElementById(
+          'activeFiltersDisplay'
+        );
+        DOMElements.downloadChartBtn =
+          document.getElementById('downloadChartBtn');
+        DOMElements.fullscreenChartBtn =
+          document.getElementById('fullscreenChartBtn');
+        DOMElements.chartContainerEl =
+          document.getElementById('chartContainer');
+        DOMElements.svgD3 = d3.select('#chart');
+        DOMElements.tooltipD3 = d3.select('#tooltip');
+        DOMElements.legendContainerD3 = d3.select('#legend');
+        DOMElements.insightsTableBodyEl =
+          document.getElementById('insightsTableBody');
+      }
+
+      // --- DATA FETCHING AND INITIALIZATION ---
+      document.addEventListener('DOMContentLoaded', () => {
+        cacheDOMElements();
+        DOMElements.body.style.display = 'block';
+        DOMElements.loadingIndicator.style.display = 'block';
+        DOMElements.errorDisplay.style.display = 'none';
+
+        DOMElements.reloadButton.onclick = () => window.location.reload();
+
+        fetch('https://data-api-9w02.onrender.com/api/data')
+          .then((response) => {
+            if (!response.ok)
+              throw new Error(
+                `Network response was not ok: ${response.status} ${response.statusText}`
+              );
+            return response.json();
+          })
+          .then((rawData) => {
+            if (!rawData || !Array.isArray(rawData))
+              throw new Error('Invalid data format received');
+            if (rawData.length === 0)
+              throw new Error('No data received from API.');
+
+            allData = rawData.map((d) => ({
+              branch: d.branch,
+              revision: d.revision,
+              scale: +d.scale,
+              ctime: new Date(d.ctime * 1000),
+              metric: +d.metric,
+              complete_at: new Date(d.complete_at * 1000),
+              test: d.test || 'unknown_test',
+              machine: d.machine || 'unknown_machine',
+              commit_message:
+                d.commit_message || `Commit ${d.revision.substring(0, 7)}`,
+            }));
+
+            DOMElements.loadingIndicator.style.display = 'none';
+            initializeApp();
+          })
+          .catch((error) => {
+            console.error('Error fetching or processing data:', error);
+            DOMElements.loadingIndicator.style.display = 'none';
+            DOMElements.errorHeading.textContent = 'Error Loading Data';
+            DOMElements.errorMessage.textContent =
+              error.message ||
+              'Failed to fetch or process data. Please try again later.';
+            DOMElements.errorDisplay.style.display = 'block';
+            const appStructure = document.querySelector(
+              '.relative.md\\:flex.h-screen'
+            );
+            if (appStructure) appStructure.style.display = 'none';
+          });
+      });
+
+      function initializeApp() {
+        setupSidebar();
+        setupChart();
+        populateInitialFilterControls();
+        setupEventListeners();
+        applyFiltersAndUpdateUI();
+        handleResize();
+      }
+
+      // --- SIDEBAR ---
+      function setupSidebar() {
+        let isSidebarOpen = window.innerWidth >= 768;
+        const applyState = () => {
+          if (isSidebarOpen) {
+            DOMElements.sidebar.classList.remove('-translate-x-full');
+            DOMElements.sidebarOverlay.classList.toggle(
+              'hidden',
+              window.innerWidth >= 768
+            );
+          } else {
+            DOMElements.sidebar.classList.add('-translate-x-full');
+            DOMElements.sidebarOverlay.classList.add('hidden');
+          }
+        };
+        const toggle = () => {
+          isSidebarOpen = !isSidebarOpen;
+          applyState();
+        };
+        DOMElements.sidebarToggle.addEventListener('click', toggle);
+        DOMElements.sidebarOverlay.addEventListener('click', toggle);
+        applyState();
+      }
+
+      // --- D3 CHART SETUP ---
+      const chartGlobals = {
+        margin: { top: 50, right: 40, bottom: 60, left: 70 },
+        width: 0,
+        height: 0,
+        x: d3.scaleTime(),
+        y: d3.scaleLinear(),
+        color: d3.scaleOrdinal(d3.schemeTableau10),
+        lineGenerator: null,
+        mainGroup: null, // FIX 1: Main group for chart elements
+        xAxisG: null,
+        yAxisG: null,
+        xAxisGridG: null,
+        yAxisGridG: null,
+      };
+
+      function setupChart() {
+        // FIX 1: Create a main group for chart elements, translated by margins
+        chartGlobals.mainGroup = DOMElements.svgD3
+          .append('g')
+          .attr(
+            'transform',
+            `translate(${chartGlobals.margin.left},${chartGlobals.margin.top})`
+          );
+
+        // Append axes and grids to this mainGroup
+        chartGlobals.xAxisGridG = chartGlobals.mainGroup
+          .append('g')
+          .attr('class', 'x-grid grid');
+        chartGlobals.yAxisGridG = chartGlobals.mainGroup
+          .append('g')
+          .attr('class', 'y-grid grid');
+        chartGlobals.xAxisG = chartGlobals.mainGroup
+          .append('g')
+          .attr('class', 'x-axis axis');
+        chartGlobals.yAxisG = chartGlobals.mainGroup
+          .append('g')
+          .attr('class', 'y-axis axis');
+
+        // Axis labels are direct children of svgD3, positioned in the margin areas
+        DOMElements.svgD3
+          .append('text')
+          .attr('class', 'axis-label x-label')
+          .style('text-anchor', 'middle')
+          .text('Commit Date');
+
+        DOMElements.svgD3
+          .append('text')
+          .attr('class', 'axis-label y-label')
+          .attr('transform', 'rotate(-90)') // Rotation applied once
+          .style('text-anchor', 'middle')
+          .text('Metric Value');
+
+        chartGlobals.lineGenerator = d3
+          .line()
+          .x((d) => chartGlobals.x(d.ctime))
+          .y((d) => chartGlobals.y(d.metric))
+          .curve(d3.curveMonotoneX);
+      }
+
+      // --- FILTER LOGIC AND UI ---
+      function getUniqueValues(data, key) {
+        return [
+          ...new Set(data.map((item) => item[key]).filter(Boolean)),
+        ].sort();
+      }
+
+      function populateInitialFilterControls() {
+        const uniqueTests = getUniqueValues(allData, 'test');
+        const uniqueMachines = getUniqueValues(allData, 'machine');
+
+        populateDropdown(DOMElements.selectTestEl, uniqueTests, 'Select test');
+        populateDropdown(
+          DOMElements.selectMachineEl,
+          uniqueMachines,
+          'Select machine'
+        );
+
+        if (!currentFilters.test && uniqueTests.length > 0)
+          currentFilters.test = uniqueTests[0];
+        if (!currentFilters.machine && uniqueMachines.length > 0)
+          currentFilters.machine = uniqueMachines[0];
+
+        DOMElements.selectTestEl.value = currentFilters.test || '';
+        DOMElements.selectMachineEl.value = currentFilters.machine || '';
+
+        updateDependentFilters();
+      }
+
+      function populateDropdown(
+        selectElement,
+        optionsArray,
+        defaultOptionText
+      ) {
+        selectElement.innerHTML = '';
+        if (defaultOptionText) {
+          const defaultOpt = document.createElement('option');
+          defaultOpt.value = '';
+          defaultOpt.textContent = defaultOptionText;
+          selectElement.appendChild(defaultOpt);
+        }
+        optionsArray.forEach((optValue) => {
+          const option = document.createElement('option');
+          option.value = optValue;
+          option.textContent = optValue;
+          selectElement.appendChild(option);
+        });
+      }
+
+      function updateDependentFilters() {
+        filteredDataByTestMachine = allData.filter(
+          (d) =>
+            d.test === currentFilters.test &&
+            d.machine === currentFilters.machine
+        );
+
+        const availableBranches = getUniqueValues(
+          filteredDataByTestMachine,
+          'branch'
+        );
+        chartGlobals.color.domain(availableBranches);
+
+        currentFilters.branches = currentFilters.branches.filter((b) =>
+          availableBranches.includes(b)
+        );
+
+        if (
+          currentFilters.branches.length === 0 &&
+          availableBranches.length > 0
+        ) {
+          currentFilters.branches = availableBranches.slice(
+            0,
+            Math.min(3, availableBranches.length)
+          );
+        }
+
+        populateBranchSelector(availableBranches);
+        renderBranchPills();
+
+        const dateExtents = d3.extent(
+          filteredDataByTestMachine,
+          (d) => d.ctime
+        );
+        const formatDate = d3.timeFormat('%Y-%m-%d');
+
+        if (!currentFilters.dateRange[0] || !currentFilters.dateRange[1]) {
+          currentFilters.dateRange = [
+            dateExtents[0] || new Date(),
+            dateExtents[1] || new Date(),
+          ];
+        }
+        DOMElements.dateFromEl.value = currentFilters.dateRange[0]
+          ? formatDate(currentFilters.dateRange[0])
+          : '';
+        DOMElements.dateToEl.value = currentFilters.dateRange[1]
+          ? formatDate(currentFilters.dateRange[1])
+          : '';
+
+        DOMElements.chartTitleEl.textContent = `${(
+          currentFilters.test || ''
+        ).toUpperCase()} Performance on ${currentFilters.machine || 'N/A'}`;
+      }
+
+      function populateBranchSelector(availableBranches) {
+        DOMElements.chooseBranchesEl.innerHTML = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent =
+          availableBranches.length > 0
+            ? 'Choose branches...'
+            : 'No branches available';
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        DOMElements.chooseBranchesEl.appendChild(placeholder);
+
+        availableBranches.forEach((branch) => {
+          if (!currentFilters.branches.includes(branch)) {
+            const option = document.createElement('option');
+            option.value = branch;
+            option.textContent = branch;
+            DOMElements.chooseBranchesEl.appendChild(option);
+          }
+        });
+      }
+
+      function renderBranchPills() {
+        DOMElements.selectedBranchesDisplayEl.innerHTML = '';
+        const availableBranchesForPills = getUniqueValues(
+          filteredDataByTestMachine,
+          'branch'
+        );
+
+        currentFilters.branches.forEach((branch) => {
+          if (!availableBranchesForPills.includes(branch)) return;
+
+          const pill = document.createElement('span');
+          pill.className = 'branch-pill';
+          pill.textContent = branch;
+          const removeBtn = document.createElement('span');
+          removeBtn.className = 'branch-pill-remove';
+          removeBtn.textContent = '×';
+          removeBtn.dataset.branch = branch;
+          removeBtn.onclick = () => {
+            if (currentFilters.branches.length <= 1) {
+              // Optionally inform user, or just don't allow removal of last branch
+              console.log('At least one branch must remain selected.');
+              return;
+            }
+            currentFilters.branches = currentFilters.branches.filter(
+              (b) => b !== branch
+            );
+            populateBranchSelector(
+              getUniqueValues(filteredDataByTestMachine, 'branch')
+            );
+            renderBranchPills();
+            // FIX 2: Apply filters when a branch pill is removed
+            applyFiltersAndUpdateUI();
+          };
+          pill.appendChild(removeBtn);
+          DOMElements.selectedBranchesDisplayEl.appendChild(pill);
+        });
+        const branchesInPills = currentFilters.branches;
+        Array.from(DOMElements.chooseBranchesEl.options).forEach((option) => {
+          if (branchesInPills.includes(option.value)) {
+            option.remove();
+          }
+        });
+      }
+
+      function handleBranchChoice() {
+        const selectedBranch = DOMElements.chooseBranchesEl.value;
+        if (
+          selectedBranch &&
+          !currentFilters.branches.includes(selectedBranch)
+        ) {
+          currentFilters.branches.push(selectedBranch);
+          currentFilters.branches.sort();
+          renderBranchPills();
+          DOMElements.chooseBranchesEl.value = '';
+          // FIX 2: Apply filters when a branch is chosen from dropdown
+          applyFiltersAndUpdateUI();
+        }
+      }
+
+      function applyFiltersAndUpdateUI() {
+        currentFilters.dateRange[0] = DOMElements.dateFromEl.value
+          ? new Date(DOMElements.dateFromEl.value + 'T00:00:00')
+          : null;
+        currentFilters.dateRange[1] = DOMElements.dateToEl.value
+          ? new Date(DOMElements.dateToEl.value + 'T23:59:59')
+          : null;
+
+        if (
+          currentFilters.dateRange[0] &&
+          currentFilters.dateRange[1] &&
+          currentFilters.dateRange[0] > currentFilters.dateRange[1]
+        ) {
+          [currentFilters.dateRange[0], currentFilters.dateRange[1]] = [
+            currentFilters.dateRange[1],
+            currentFilters.dateRange[0],
+          ];
+          const formatDate = d3.timeFormat('%Y-%m-%d');
+          DOMElements.dateFromEl.value = formatDate(
+            currentFilters.dateRange[0]
+          );
+          DOMElements.dateToEl.value = formatDate(currentFilters.dateRange[1]);
+        }
+
+        const fullDateRangeForTestMachine = d3.extent(
+          filteredDataByTestMachine,
+          (d) => d.ctime
+        );
+        if (!currentFilters.dateRange[0])
+          currentFilters.dateRange[0] =
+            fullDateRangeForTestMachine[0] || new Date(0);
+        if (!currentFilters.dateRange[1])
+          currentFilters.dateRange[1] =
+            fullDateRangeForTestMachine[1] || new Date();
+
+        const dataForChartAndTables = filteredDataByTestMachine.filter(
+          (d) =>
+            currentFilters.branches.includes(d.branch) &&
+            d.ctime >= currentFilters.dateRange[0] &&
+            d.ctime <= currentFilters.dateRange[1]
+        );
+
+        updateChartUI(dataForChartAndTables);
+        updateTableView(dataForChartAndTables);
+        updateInsightsTable(dataForChartAndTables);
+        updateActiveFiltersDisplay();
+      }
+
+      function resetAllFilters() {
+        currentFilters = {
+          test: null,
+          machine: null,
+          branches: [],
+          dateRange: [null, null],
+        };
+        populateInitialFilterControls();
+        applyFiltersAndUpdateUI();
+      }
+
+      function updateActiveFiltersDisplay() {
+        const dateFormat = d3.timeFormat('%x');
+        let branchesText =
+          currentFilters.branches.length === 0
+            ? 'None'
+            : currentFilters.branches.length ===
+              getUniqueValues(filteredDataByTestMachine, 'branch').length
+            ? 'All'
+            : currentFilters.branches.join(', ');
+
+        let dateText = 'All Dates';
+        if (currentFilters.dateRange[0] && currentFilters.dateRange[1]) {
+          const fullRange = d3.extent(
+            filteredDataByTestMachine,
+            (d) => d.ctime
+          );
+          // Check if the current date range is different from the full available range for the test/machine
+          const isFullRange =
+            fullRange[0] &&
+            fullRange[1] &&
+            currentFilters.dateRange[0].getTime() === fullRange[0].getTime() &&
+            currentFilters.dateRange[1].getTime() === fullRange[1].getTime();
+
+          if (!isFullRange) {
+            dateText = `${dateFormat(
+              currentFilters.dateRange[0]
+            )} - ${dateFormat(currentFilters.dateRange[1])}`;
+          }
+        }
+        DOMElements.activeFiltersDisplayEl.textContent = `Active Filters: Test - ${
+          currentFilters.test || 'N/A'
+        }, Machine - ${
+          currentFilters.machine || 'N/A'
+        }, Branches - ${branchesText}, Dates - ${dateText}`;
+      }
+
+      // --- EVENT LISTENERS ---
+      function setupEventListeners() {
+        DOMElements.selectTestEl.addEventListener('change', () => {
+          currentFilters.test = DOMElements.selectTestEl.value;
+          currentFilters.branches = [];
+          currentFilters.dateRange = [null, null];
+          updateDependentFilters();
+          // applyFiltersAndUpdateUI(); // User clicks "APPLY" or interacts with branches
+        });
+        DOMElements.selectMachineEl.addEventListener('change', () => {
+          currentFilters.machine = DOMElements.selectMachineEl.value;
+          currentFilters.branches = [];
+          currentFilters.dateRange = [null, null];
+          updateDependentFilters();
+          // applyFiltersAndUpdateUI(); // User clicks "APPLY" or interacts with branches
+        });
+        DOMElements.chooseBranchesEl.addEventListener(
+          'change',
+          handleBranchChoice // Now calls applyFiltersAndUpdateUI()
+        );
+        DOMElements.applyFiltersBtn.addEventListener(
+          'click',
+          applyFiltersAndUpdateUI
+        );
+        DOMElements.resetFiltersBtn.addEventListener('click', resetAllFilters);
+
+        DOMElements.viewModeChartBtn.addEventListener('click', () => {
+          DOMElements.chartViewEl.classList.remove('hidden');
+          DOMElements.tableViewContainerEl.classList.add('hidden');
+          DOMElements.viewModeChartBtn.classList.replace(
+            'view-mode-inactive',
+            'view-mode-active'
+          );
+          DOMElements.viewModeTableBtn.classList.replace(
+            'view-mode-active',
+            'view-mode-inactive'
+          );
+          handleResize();
+        });
+        DOMElements.viewModeTableBtn.addEventListener('click', () => {
+          DOMElements.chartViewEl.classList.add('hidden');
+          DOMElements.tableViewContainerEl.classList.remove('hidden');
+          DOMElements.viewModeTableBtn.classList.replace(
+            'view-mode-inactive',
+            'view-mode-active'
+          );
+          DOMElements.viewModeChartBtn.classList.replace(
+            'view-mode-active',
+            'view-mode-inactive'
+          );
+        });
+
+        window.addEventListener('resize', handleResize);
+        DOMElements.downloadChartBtn.addEventListener('click', downloadChart);
+        DOMElements.fullscreenChartBtn.addEventListener(
+          'click',
+          toggleFullscreenChart
+        );
+      }
+
+      // --- CHART DRAWING AND UPDATES ---
+      function updateChartUI(dataToDraw) {
+        const {
+          x,
+          y,
+          color,
+          lineGenerator,
+          margin,
+          mainGroup, // FIX 1: Use mainGroup
+          xAxisG,
+          yAxisG,
+          xAxisGridG,
+          yAxisGridG,
+        } = chartGlobals;
+        const { svgD3 } = DOMElements;
+
+        if (!dataToDraw || dataToDraw.length === 0) {
+          mainGroup.selectAll('*').remove();
+          xAxisG.selectAll('*').remove();
+          yAxisG.selectAll('*').remove();
+          xAxisGridG.selectAll('*').remove();
+          yAxisGridG.selectAll('*').remove();
+
+          mainGroup
+            .append('text')
+            .attr('class', 'no-data-message')
+            .attr('x', chartGlobals.width / 2)
+            .attr('y', chartGlobals.height / 2)
+            .attr('text-anchor', 'middle')
+            .style('font-size', '16px')
+            .text('No data available for the selected filters.');
+          updateLegend([]);
+          return;
+        }
+        mainGroup.select('.no-data-message').remove();
+
+        const xExtent = d3.extent(dataToDraw, (d) => d.ctime);
+        const yMinOriginal = d3.min(dataToDraw, (d) => d.metric);
+        const yMaxOriginal = d3.max(dataToDraw, (d) => d.metric);
+
+        let yPadding = (yMaxOriginal - yMinOriginal) * 0.1;
+        if (yPadding === 0 && yMaxOriginal === yMinOriginal)
+          yPadding = yMaxOriginal === 0 ? 1 : Math.abs(yMaxOriginal * 0.1);
+        if (yPadding === 0 && yMaxOriginal !== yMinOriginal) yPadding = 0.1; // for case when min or max is 0
+
+        const yDomainMin = yMinOriginal - yPadding; // This will make it start from min data point minus padding
+        const yDomainMax = yMaxOriginal + yPadding;
+
+        x.domain(xExtent).range([0, chartGlobals.width]);
+        y.domain([yDomainMin, yDomainMax])
+          .nice()
+          .range([chartGlobals.height, 0]);
+
+        const dateFormat = d3.timeFormat('%d-%b-%y');
+
+        // FIX 4: More robust tick generation for X-axis
+        let xAxisCall = d3.axisBottom(x).tickFormat(dateFormat);
+        const timeSpanDays =
+          x.domain()[1] && x.domain()[0]
+            ? (x.domain()[1] - x.domain()[0]) / (1000 * 60 * 60 * 24)
+            : 0;
+        const numTicksTarget = Math.min(
+          10,
+          Math.max(5, Math.floor(chartGlobals.width / 100))
+        );
+        xAxisCall.ticks(numTicksTarget);
+
+        xAxisG
+          .attr('transform', `translate(0,${chartGlobals.height})`)
+          .transition()
+          .duration(300)
+          .call(xAxisCall);
+
+        yAxisG
+          .transition()
+          .duration(300)
+          .call(d3.axisLeft(y).ticks(5).tickFormat(d3.format(',')));
+
+        // Adjust grid lines based on the actual ticks generated by axes
+        const xTickValues = xAxisG
+          .selectAll('.tick')
+          .data()
+          .map((d) => (d instanceof Date ? d : new Date(d)));
+        const yTickValues = yAxisG.selectAll('.tick').data();
+
+        xAxisGridG
+          .attr('transform', `translate(0,${chartGlobals.height})`)
+          .transition()
+          .duration(300)
+          .call(
+            d3
+              .axisBottom(x)
+              .tickValues(xTickValues)
+              .tickSize(-chartGlobals.height)
+              .tickFormat('')
+          );
+        yAxisGridG
+          .transition()
+          .duration(300)
+          .call(
+            d3
+              .axisLeft(y)
+              .tickValues(yTickValues)
+              .tickSize(-chartGlobals.width)
+              .tickFormat('')
+          );
+
+        // FIX 1: Correct positioning for axis labels (children of svgD3)
+        svgD3
+          .select('.axis-label.x-label')
+          .attr(
+            'transform',
+            `translate(${margin.left + chartGlobals.width / 2}, ${
+              margin.top + chartGlobals.height + margin.bottom - 20
+            })`
+          );
+        svgD3
+          .select('.axis-label.y-label') // Already rotated -90 in setupChart
+          .attr('y', margin.left / 2 - 15)
+          .attr('x', 0 - (margin.top + chartGlobals.height / 2));
+
+        const dataByBranch = d3.group(dataToDraw, (d) => d.branch);
+        // FIX 1: Select series from mainGroup
+        const series = mainGroup
+          .selectAll('.data-series-group')
+          .data(Array.from(dataByBranch), ([branch]) => branch);
+
+        series.exit().transition().duration(300).style('opacity', 0).remove();
+        const seriesEnter = series
+          .enter()
+          .append('g')
+          .attr('class', 'data-series-group');
+
+        seriesEnter
+          .append('path')
+          .attr('class', 'line')
+          .style('fill', 'none')
+          .style('stroke-width', 2.5);
+
+        series
+          .merge(seriesEnter)
+          .select('.line')
+          .transition()
+          .duration(300)
+          .attr('d', ([, values]) =>
+            lineGenerator(values.sort((a, b) => a.ctime - b.ctime))
+          )
+          .style('stroke', ([branch]) => color(branch));
+
+        // FIX 1: Select points from mainGroup
+        const allPoints = mainGroup
+          .selectAll('.point')
+          .data(
+            dataToDraw,
+            (d) => `${d.branch}-${d.revision}-${d.ctime.getTime()}`
+          );
+
+        allPoints.exit().transition().duration(300).attr('r', 0).remove();
+
+        allPoints
+          .enter()
+          .append('circle')
+          .attr('class', 'point')
+          .attr('r', 0)
+          .on('mouseover', showTooltip)
+          .on('mouseout', hideTooltip)
+          .merge(allPoints)
+          .style('fill', (d) => color(d.branch)) // FIX 3: Set fill on merged selection
+          .transition()
+          .duration(300)
+          .attr('cx', (d) => x(d.ctime))
+          .attr('cy', (d) => y(d.metric))
+          .attr('r', 4.5);
+
+        updateLegend(Array.from(dataByBranch.keys()));
+      }
+
+      function updateLegend(activeBranchesOnChart) {
+        DOMElements.legendContainerD3.selectAll('.legend-item').remove();
+        const allBranchesForCurrentTestMachine = getUniqueValues(
+          filteredDataByTestMachine,
+          'branch'
+        );
+
+        allBranchesForCurrentTestMachine.forEach((branch) => {
+          const isSelectedInFilter = currentFilters.branches.includes(branch);
+          DOMElements.legendContainerD3
+            .append('div')
+            .attr(
+              'class',
+              `legend-item ${isSelectedInFilter ? '' : 'inactive'}`
+            )
+            .attr('data-branch', branch)
+            .html(
+              `<span class="legend-color" style="background-color:${chartGlobals.color(
+                branch
+              )};"></span> ${branch}`
+            )
+            .on('click', function () {
+              const clickedBranch = d3.select(this).attr('data-branch');
+              const index = currentFilters.branches.indexOf(clickedBranch);
+              if (index > -1) {
+                if (currentFilters.branches.length > 1) {
+                  currentFilters.branches.splice(index, 1);
+                } else {
+                  console.log('At least one branch must be selected.');
+                  return;
+                }
+              } else {
+                currentFilters.branches.push(clickedBranch);
+              }
+
+              currentFilters.branches.sort();
+              populateBranchSelector(allBranchesForCurrentTestMachine);
+              renderBranchPills();
+              // FIX 2: Apply filters and update chart when legend item is clicked
+              applyFiltersAndUpdateUI();
+            });
+        });
+      }
+
+      function showTooltip(event, d) {
+        const { tooltipD3 } = DOMElements; // svgD3 no longer needed directly here for pointer
+        tooltipD3.style('pointer-events', 'auto');
+
+        const formattedDate = d.ctime.toLocaleDateString(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        const shortHash = d.revision.substring(0, 7);
+        const commitLink = `https://github.com/postgres/postgres/commit/${d.revision}`;
+
+        tooltipD3.transition().duration(100).style('opacity', 0.95);
+        tooltipD3.html(`
+            <div class="tooltip-date">${formattedDate}</div>
+            <div class="version-item">
+                <span class="version-color" style="background-color:${chartGlobals.color(
+                  d.branch
+                )}"></span>
+                <span class="version-name">${d.branch}</span>
+                <span class="version-value">${d3.format(',.1f')(
+                  d.metric
+                )}</span>
+            </div>
+            <div class="commit-details">
+                <strong>Commit Hash:</strong> ${shortHash}<br>
+                <strong>Commit Message:</strong> <span class="commit-message">${
+                  d.commit_message || 'N/A'
+                }</span>
+                <a href="${commitLink}" target="_blank" rel="noopener noreferrer">View Full Commit Details</a>
+            </div>`);
+
+        // FIX 1: Tooltip positioning uses mainGroup as reference for pointer coords
+        const [mouseXlocal, mouseYlocal] = d3.pointer(
+          event,
+          chartGlobals.mainGroup.node()
+        );
+
+        const mainGroupRect = chartGlobals.mainGroup
+          .node()
+          .getBoundingClientRect();
+        const bodyRect = document.body.getBoundingClientRect();
+
+        let left =
+          mainGroupRect.left -
+          bodyRect.left +
+          mouseXlocal +
+          15 +
+          window.scrollX;
+        let top =
+          mainGroupRect.top - bodyRect.top + mouseYlocal - 15 + window.scrollY; // Initial top, adjust if it makes tooltip go off screen
+
+        const tooltipNode = tooltipD3.node();
+        const tooltipHeight = tooltipNode.offsetHeight;
+        const tooltipWidth = tooltipNode.offsetWidth;
+
+        // Adjust top position if tooltip goes above viewport due to its height
+        if (
+          mainGroupRect.top - bodyRect.top + mouseYlocal - tooltipHeight - 15 <
+          0
+        ) {
+          top =
+            mainGroupRect.top -
+            bodyRect.top +
+            mouseYlocal +
+            15 +
+            window.scrollY;
+        } else {
+          top =
+            mainGroupRect.top -
+            bodyRect.top +
+            mouseYlocal -
+            tooltipHeight -
+            15 +
+            window.scrollY;
+        }
+
+        if (left + tooltipWidth > window.innerWidth + window.scrollX - 10) {
+          left =
+            mainGroupRect.left -
+            bodyRect.left +
+            mouseXlocal -
+            15 -
+            tooltipWidth +
+            window.scrollX;
+        }
+        if (top < window.scrollY + 10) {
+          top = window.scrollY + 10;
+        }
+        if (top + tooltipHeight > window.innerHeight + window.scrollY - 10) {
+          top = window.innerHeight + window.scrollY - tooltipHeight - 10;
+        }
+        if (left < window.scrollX + 10) {
+          left = window.scrollX + 10;
+        }
+
+        tooltipD3.style('left', `${left}px`).style('top', `${top}px`);
+        d3.select(event.currentTarget)
+          .transition()
+          .duration(50)
+          .attr('r', 6.5)
+          .style('stroke', '#333')
+          .style('stroke-width', 1.5);
+      }
+
+      function hideTooltip(event) {
+        DOMElements.tooltipD3
+          .transition()
+          .duration(200)
+          .style('opacity', 0)
+          .on('end', function () {
+            d3.select(this).style('pointer-events', 'none');
+          });
+        d3.select(event.currentTarget)
+          .transition()
+          .duration(100)
+          .attr('r', 4.5)
+          .style('stroke', 'none');
+      }
+
+      // --- RESPONSIVE AND UTILITY ---
+      function handleResize() {
+        if (
+          !DOMElements.chartContainerEl ||
+          DOMElements.chartViewEl.classList.contains('hidden')
+        )
+          return;
+
+        const newContainerWidth = DOMElements.chartContainerEl.clientWidth;
+        const newSvgHeight = Math.max(
+          300,
+          Math.min(550, newContainerWidth * 0.6)
+        ); // Adjusted height calculation
+
+        chartGlobals.width =
+          newContainerWidth -
+          chartGlobals.margin.left -
+          chartGlobals.margin.right;
+        chartGlobals.height =
+          newSvgHeight - chartGlobals.margin.top - chartGlobals.margin.bottom;
+
+        // Ensure width and height are not negative if container is too small
+        chartGlobals.width = Math.max(0, chartGlobals.width);
+        chartGlobals.height = Math.max(0, chartGlobals.height);
+
+        DOMElements.svgD3
+          .attr('width', newContainerWidth)
+          .attr('height', newSvgHeight);
+
+        // FIX 1: mainGroup transform is static. Ranges update in updateChartUI.
+
+        if (
+          chartGlobals.width > 0 &&
+          chartGlobals.height > 0 &&
+          allData.length > 0
+        ) {
+          applyFiltersAndUpdateUI();
+        } else if (allData.length > 0) {
+          // If dimensions are too small, clear chart or show minimal message
+          chartGlobals.mainGroup.selectAll('*').remove();
+          chartGlobals.mainGroup
+            .append('text')
+            .attr('x', chartGlobals.width / 2)
+            .attr('y', chartGlobals.height / 2)
+            .attr('text-anchor', 'middle')
+            .text('Chart area too small.');
+        }
+      }
+
+      function downloadChart() {
+        const svgNode = DOMElements.svgD3.node();
+        const originalSvgBackground = svgNode.style.backgroundColor;
+        svgNode.style.backgroundColor = '#FFFFFF'; // Temporarily set white background
+
+        const svgString = new XMLSerializer().serializeToString(svgNode);
+        svgNode.style.backgroundColor = originalSvgBackground; // Restore
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+
+        const svgWidth = parseFloat(svgNode.getAttribute('width'));
+        const svgHeight = parseFloat(svgNode.getAttribute('height'));
+
+        canvas.width = svgWidth;
+        canvas.height = svgHeight;
+
+        const svgBlob = new Blob([svgString], {
+          type: 'image/svg+xml;charset=utf-8',
+        });
+        const url = URL.createObjectURL(svgBlob);
+
+        img.onload = () => {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, svgWidth, svgHeight);
+
+          const pngUrl = canvas.toDataURL('image/png');
+          const a = document.createElement('a');
+          a.download = 'pgperffarm_chart.png';
+          a.href = pngUrl;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(pngUrl);
+          URL.revokeObjectURL(url);
+        };
+        img.onerror = (e) => {
+          console.error('Error loading SVG image for download:', e);
+          alert(
+            'Failed to prepare chart for download. Check console for errors.'
+          );
+          URL.revokeObjectURL(url);
+        };
+        img.src = url;
+      }
+
+      function toggleFullscreenChart() {
+        const el = DOMElements.chartViewEl;
+        if (!document.fullscreenElement) {
+          if (el.requestFullscreen) {
+            el.requestFullscreen().catch((err) =>
+              alert(
+                `Error attempting to enable full-screen mode: ${err.message} (${err.name})`
+              )
+            );
+          } else if (el.webkitRequestFullscreen) {
+            el.webkitRequestFullscreen();
+          } else if (el.msRequestFullscreen) {
+            el.msRequestFullscreen();
+          }
+        } else {
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+          } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+          }
+        }
+      }
+
+      // --- TABLE VIEW ---
+      function updateTableView(data) {
+        DOMElements.tableViewEl.innerHTML = '';
+        if (!data || data.length === 0) {
+          DOMElements.tableViewEl.innerHTML =
+            '<p class="text-gray-500 text-center py-4">No data available for the selected filters.</p>';
+          return;
+        }
+
+        const table = document.createElement('table');
+        table.className = 'min-w-full divide-y divide-gray-200';
+        const thead = document.createElement('thead');
+        thead.className = 'bg-gray-50';
+        const tbody = document.createElement('tbody');
+        tbody.className = 'bg-white divide-y divide-gray-200 text-sm';
+
+        const headers = [
+          'Branch',
+          'Revision (Short)',
+          'Commit Date',
+          'Metric',
+          'Test',
+          'Machine',
+        ];
+        const trHead = document.createElement('tr');
+        headers.forEach((headerText) => {
+          const th = document.createElement('th');
+          th.scope = 'col';
+          th.className =
+            'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+          th.textContent = headerText;
+          trHead.appendChild(th);
+        });
+        thead.appendChild(trHead);
+        table.appendChild(thead);
+
+        const dateFormat = d3.timeFormat('%Y-%m-%d %H:%M');
+        const sortedData = [...data].sort((a, b) => b.ctime - a.ctime);
+
+        sortedData.forEach((d) => {
+          const trBody = document.createElement('tr');
+          const cells = [
+            d.branch,
+            d.revision.substring(0, 10),
+            dateFormat(d.ctime),
+            d3.format(',.1f')(d.metric),
+            d.test,
+            d.machine,
+          ];
+          cells.forEach((cellData) => {
+            const td = document.createElement('td');
+            td.className = 'px-4 py-3 whitespace-nowrap text-gray-700';
+            td.textContent = cellData;
+            trBody.appendChild(td);
+          });
+          tbody.appendChild(trBody);
+        });
+        table.appendChild(tbody);
+        DOMElements.tableViewEl.appendChild(table);
+      }
+
+      // --- INSIGHTS TABLE ---
+      function updateInsightsTable(filteredData) {
+        DOMElements.insightsTableBodyEl.innerHTML = '';
+        if (currentFilters.branches.length === 0) {
+          DOMElements.insightsTableBodyEl.innerHTML =
+            '<tr><td colspan="6" class="text-center py-4 text-gray-500">No branches selected. Select branches and apply filters to see insights.</td></tr>';
+          return;
+        }
+        if (!filteredData || filteredData.length === 0) {
+          DOMElements.insightsTableBodyEl.innerHTML =
+            '<tr><td colspan="6" class="text-center py-4 text-gray-500">No data available for selected branches in this date range.</td></tr>';
+          return;
+        }
+
+        const dataByBranch = d3.group(filteredData, (d) => d.branch);
+        let insightsExist = false;
+
+        currentFilters.branches.forEach((branchName) => {
+          const branchData = Array.from(
+            dataByBranch.get(branchName) || []
+          ).sort((a, b) => a.ctime - b.ctime);
+          if (branchData.length === 0) return;
+          insightsExist = true;
+
+          const metrics = branchData.map((d) => d.metric);
+          const avgMetric = d3.mean(metrics);
+
+          const bestMetricEntry = branchData.reduce(
+            (best, curr) => (curr.metric > best.metric ? curr : best),
+            branchData[0]
+          );
+          const worstMetricEntry = branchData.reduce(
+            (worst, curr) => (curr.metric < worst.metric ? curr : worst),
+            branchData[0]
+          );
+
+          let perfTrendText = 'N/A';
+          let perfTrendColor = 'text-gray-700';
+          if (branchData.length >= 2) {
+            const firstMetric = branchData[0].metric;
+            const lastMetric = branchData[branchData.length - 1].metric;
+            if (Math.abs(firstMetric) > 1e-9) {
+              // Avoid division by zero or near-zero
+              const change =
+                ((lastMetric - firstMetric) / Math.abs(firstMetric)) * 100;
+              perfTrendText = `${change >= 0 ? '+' : ''}${d3.format('.1f')(
+                change
+              )}%`;
+              perfTrendColor =
+                change > 0.1
+                  ? 'text-green-600 font-semibold'
+                  : change < -0.1
+                  ? 'text-red-600 font-semibold'
+                  : 'text-gray-700';
+            }
+          }
+
+          const summary = `${branchData.length} commit${
+            branchData.length === 1 ? '' : 's'
+          } analyzed.`;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">${branchName}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-700">${
+                  avgMetric !== undefined ? d3.format(',.1f')(avgMetric) : 'N/A' // Check for undefined avgMetric
+                }</td>
+                <td class="px-6 py-4 whitespace-nowrap ${perfTrendColor}">${perfTrendText}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-700">
+                    ${d3.format(',.1f')(bestMetricEntry.metric)} 
+                    (<span class="text-blue-600 cursor-pointer clickable-commit" title="${
+                      bestMetricEntry.commit_message
+                    }\nRevision: ${bestMetricEntry.revision}
+                    }">${bestMetricEntry.revision.substring(0, 7)}</span>)
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-700">
+                    ${d3.format(',.1f')(worstMetricEntry.metric)} 
+                    (<span class="text-blue-600 cursor-pointer clickable-commit" title="${
+                      worstMetricEntry.commit_message
+                    }\nRevision: ${worstMetricEntry.revision}
+                    }">${worstMetricEntry.revision.substring(0, 7)}</span>)
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-gray-700">${summary}</td>
+            `;
+          DOMElements.insightsTableBodyEl.appendChild(tr);
+        });
+        if (!insightsExist && currentFilters.branches.length > 0) {
+          DOMElements.insightsTableBodyEl.innerHTML =
+            '<tr><td colspan="6" class="text-center py-4 text-gray-500">No data found for the selected branches in the specified date range.</td></tr>';
+        }
+      }
+    </script>
+  </body>
+</html>
