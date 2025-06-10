@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DB2 Fireweed Performance Chart</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      .axis path,
+      .axis line {
+        stroke: #333;
+        stroke-width: 1;
+      }
+
+      .axis text {
+        fill: #111;
+        font-size: 12px;
+      }
+
+      .grid path {
+        display: none;
+      }
+
+      .grid line {
+        stroke: #e2e8f0; /* Lighter grid lines */
+        stroke-dasharray: 2, 2;
+      }
+
+      .brush .selection {
+        fill: #3b82f6; /* Tailwind's blue-500 */
+        fill-opacity: 0.2;
+        stroke: #2563eb;
+      }
+
+      /* Tooltip Styles */
+      .tooltip {
+        position: absolute;
+        opacity: 0;
+        background-color: white;
+        color: #333;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border: 1px solid #e2e8f0;
+
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          'Helvetica Neue', Arial, sans-serif;
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: nowrap;
+        transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+        z-index: 1000;
+        min-width: 300px;
+        pointer-events: none; /* Important for mouse events to pass through */
+      }
+      .tooltip .tooltip-date {
+        font-size: 12px;
+        color: #718096;
+        margin-bottom: 10px;
+        padding-bottom: 5px;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .tooltip strong {
+        font-weight: 600;
+        color: #4a5568;
+        display: inline-block;
+        min-width: 80px;
+      }
+      .tooltip .version-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+      .tooltip .version-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+        display: inline-block;
+        flex-shrink: 0;
+      }
+      .tooltip .version-name {
+        flex-grow: 1;
+        margin-right: 10px;
+        font-weight: 500;
+      }
+      .tooltip .version-value {
+        font-weight: 600;
+        text-align: right;
+      }
+      .tooltip .commit-details {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid #e2e8f0;
+      }
+      .tooltip .commit-message {
+        display: block;
+        margin-top: 5px;
+        max-width: 280px;
+        white-space: normal;
+        color: #718096;
+        font-style: italic;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      .tooltip a {
+        color: #4299e1;
+        text-decoration: none;
+        display: block;
+        margin-top: 8px;
+        font-size: 12px;
+        pointer-events: auto !important;
+      }
+      .tooltip a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="max-w-6xl mx-auto p-6 bg-white shadow-2xl rounded-xl">
+      <h1 class="text-3xl font-bold text-gray-800 mb-2">
+        DB2 Test Results Fireweed (Scale: 100)
+      </h1>
+      <div class="p-6 bg-gray-100 rounded-lg shadow-inner relative">
+        <p class="text-gray-600 mt-2 mb-4">
+          This interactive chart visualizes DB2 performance metrics over time.
+          <strong>Use the brush</strong> in the context area below to select a
+          time range and zoom in on the main chart.
+          <strong>Hover over any data point</strong> to view detailed
+          information about that specific test run, including its metric,
+          branch, and commit revision.
+        </p>
+        <svg width="100%" height="500" class="bg-white rounded"></svg>
+        <div class="tooltip"></div>
+      </div>
+    </main>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        // Fetch the CSV data file
+        fetch('./fireweed.csv')
+          .then((response) => {
+            if (!response.ok)
+              throw new Error(
+                `Failed to load CSV file: ${response.status} ${response.statusText}`
+              );
+            return response.text();
+          })
+          .then((csvText) => {
+            const rawData = parseCSV(csvText);
+
+            if (!rawData || !Array.isArray(rawData) || rawData.length === 0) {
+              throw new Error('No valid data found in CSV file');
+            }
+
+            // Process data: filter for scale 100 and format types
+            const fireweedData = rawData
+              .filter((d) => d.scale && +d.scale === 100) // Filter for scale 100
+              .map((d) => ({
+                branch: d.branch || 'unknown',
+                revision: d.revision,
+                scale: +d.scale,
+                ctime: new Date(d.ctime * 1000), // Convert UNIX timestamp to Date
+                metric: +d.metric,
+                commit_message: d.commit_message || 'N/A', // Assuming this field exists
+              }))
+              .sort((a, b) => a.ctime - b.ctime); // Sort data by time
+
+            if (fireweedData.length === 0) {
+              throw new Error('No data available for scale 100.');
+            }
+
+            initializeApp(fireweedData);
+          })
+          .catch((error) => {
+            console.error('Error fetching or processing data:', error);
+            const svg = d3.select('svg');
+            svg
+              .append('text')
+              .attr('x', svg.node().getBoundingClientRect().width / 2)
+              .attr('y', 50)
+              .attr('text-anchor', 'middle')
+              .attr('fill', 'red')
+              .text(`Error: ${error.message}`);
+          });
+      });
+
+      // Simple CSV parser function
+      function parseCSV(csvText) {
+        const lines = csvText.trim().split('\n');
+        const headers = lines[0].split(',').map((h) => h.trim());
+        return lines.slice(1).map((line) => {
+          const values = line
+            .match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g)
+            .map((v) => v.replace(/^"|"$/g, '').trim());
+          const entry = {};
+          headers.forEach((header, i) => {
+            entry[header] = values[i] || '';
+          });
+          return entry;
+        });
+      }
+
+      function initializeApp(fireweedData) {
+        const svg = d3.select('svg');
+        const width = svg.node().getBoundingClientRect().width;
+        const height = +svg.attr('height');
+
+        const margin = { top: 20, right: 30, bottom: 120, left: 60 };
+        const chartHeight = height - margin.top - margin.bottom;
+        const chartWidth = width - margin.left - margin.right;
+
+        // === SCALES ===
+        const xScale = d3
+          .scaleTime()
+          .domain(d3.extent(fireweedData, (d) => d.ctime))
+          .range([0, chartWidth]);
+
+        // const yScale = d3
+        //   .scaleLinear()
+        //   .domain([0, d3.max(fireweedData, (d) => d.metric) * 1.05]) // 5% padding
+        //   .range([chartHeight, 0]);
+
+        const yScale = d3
+          .scaleLinear()
+          .domain([
+            d3.min(fireweedData, (d) => d.metric) * 0.95, // 5% below min
+            d3.max(fireweedData, (d) => d.metric) * 1.05, // 5% above max
+          ])
+          .range([chartHeight, 0]);
+
+        // === COLOR SCALE FOR BRANCHES ===
+        const branches = Array.from(new Set(fireweedData.map((d) => d.branch)));
+        const colorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(branches);
+
+        // === NEW: DEFINE A CLIP PATH ===
+        // This defines a rectangular area that will "clip" any elements it's applied to.
+        svg
+          .append('defs')
+          .append('clipPath')
+          .attr('id', 'chart-clip')
+          .append('rect')
+          .attr('width', chartWidth)
+          .attr('height', chartHeight);
+
+        // === CHART GROUP ===
+        const chart = svg
+          .append('g')
+          .attr('transform', `translate(${margin.left}, ${margin.top})`);
+
+        // === AXES & GRIDS === (These go outside the clip area)
+        const xAxis = d3
+          .axisBottom(xScale)
+          .ticks(6)
+          .tickFormat(d3.timeFormat('%b %d'));
+        const yAxis = d3.axisLeft(yScale).ticks(6);
+        const xGrid = d3
+          .axisBottom(xScale)
+          .tickSize(-chartHeight)
+          .tickFormat('');
+        const yGrid = d3.axisLeft(yScale).tickSize(-chartWidth).tickFormat('');
+
+        chart
+          .append('g')
+          .attr('class', 'grid x-grid')
+          .attr('transform', `translate(0, ${chartHeight})`)
+          .call(xGrid);
+        chart.append('g').attr('class', 'grid y-grid').call(yGrid);
+
+        const xAxisGroup = chart
+          .append('g')
+          .attr('class', 'axis')
+          .attr('transform', `translate(0, ${chartHeight})`)
+          .call(xAxis);
+        const yAxisGroup = chart.append('g').attr('class', 'axis').call(yAxis);
+
+        // === NEW: CONTAINER FOR CLIPPED CONTENT ===
+        // We apply the clipPath to this group. Anything appended to `clipArea` will be clipped.
+        const clipArea = chart
+          .append('g')
+          .attr('clip-path', 'url(#chart-clip)');
+
+        // === LINE GENERATOR ===
+        const line = d3
+          .line()
+          .x((d) => xScale(d.ctime))
+          .y((d) => yScale(d.metric));
+
+        // === DRAW LINES PER BRANCH (Now appended to `clipArea`) ===
+        const groupedData = d3.group(fireweedData, (d) => d.branch);
+        const branchLines = clipArea
+          .append('g')
+          .selectAll('.line')
+          .data(groupedData)
+          .join('path')
+          .attr('class', 'line')
+          .attr('fill', 'none')
+          .attr('stroke', ([branch]) => colorScale(branch))
+          .attr('stroke-width', 2)
+          .attr('d', ([, data]) => line(data));
+
+        // === ADD CIRCLES PER BRANCH ===
+        const branchCircles = clipArea
+          .append('g')
+          .selectAll('circle')
+          .data(fireweedData)
+          .join('circle')
+          .attr('cx', (d) => xScale(d.ctime))
+          .attr('cy', (d) => yScale(d.metric))
+          .attr('r', 4)
+          .attr('fill', (d) => colorScale(d.branch))
+          .attr('stroke', 'white')
+          .attr('stroke-width', 1);
+
+        // === CONTEXT/BRUSH VIEW === (This remains outside the clip area)
+        const contextHeight = 60;
+        const contextTop = chartHeight + 60;
+
+        const contextGroup = svg
+          .append('g')
+          .attr('transform', `translate(${margin.left}, ${contextTop})`);
+
+        const xScale2 = d3
+          .scaleTime()
+          .domain(xScale.domain())
+          .range([0, chartWidth]);
+        const yScale2 = d3
+          .scaleLinear()
+          .domain(yScale.domain())
+          .range([contextHeight, 0]);
+
+        const contextLine = d3
+          .line()
+          .x((d) => xScale2(d.ctime))
+          .y((d) => yScale2(d.metric));
+
+        contextGroup
+          .selectAll('.context-line')
+          .data(groupedData)
+          .join('path')
+          .attr('class', 'context-line')
+          .attr('fill', 'none')
+          .attr('stroke', ([branch]) => colorScale(branch))
+          .attr('stroke-opacity', 0.7)
+          .attr('stroke-width', 1)
+          .attr('d', ([, data]) => contextLine(data));
+
+        contextGroup
+          .append('g')
+          .attr('transform', `translate(0, ${contextHeight})`)
+          .call(
+            d3.axisBottom(xScale2).ticks(6).tickFormat(d3.timeFormat('%b %Y'))
+          );
+
+        const brush = d3
+          .brushX()
+          .extent([
+            [0, 0],
+            [chartWidth, contextHeight],
+          ])
+          .on('end', brushed);
+
+        const brushGroup = contextGroup
+          .append('g')
+          .attr('class', 'brush')
+          .call(brush);
+
+        // === INTERACTIVE TOOLTIP LOGIC ===
+        const tooltip = d3.select('.tooltip');
+
+        const svgRect = svg.node().getBoundingClientRect();
+
+        // Add mouse events to the circles
+        branchCircles
+          .on('mouseover', function (event, d) {
+            const cx = xScale(d.ctime);
+            const cy = yScale(d.metric);
+
+            const tooltipX = svgRect.left + margin.left + cx + 15;
+            const tooltipY = svgRect.top + margin.top + cy - 15;
+
+            // Update tooltip position and content
+            tooltip
+              .style('left', `${tooltipX}px`)
+              .style('top', `${tooltipY}px`)
+              .style('transform', 'translateY(-100%)').html(`
+              <div class="tooltip-date">${d3.timeFormat('%A, %B %d, %Y')(
+                d.ctime
+              )}</div>
+              <div class="version-item">
+                <span class="version-color" style="background-color: ${colorScale(
+                  d.branch
+                )}"></span>
+                <span class="version-name">${d.branch}</span>
+                <span class="version-value">${d.metric.toFixed(2)}</span>
+              </div>
+              <div class="commit-details">
+                <strong>Revision:</strong> ${d.revision.substring(0, 10)}...<br>
+                <a href="https://github.com/fireweed-home/db2/commit/${
+                  d.revision
+                }" target="_blank">View on GitHub</a>
+              </div>
+            `);
+
+            // Show tooltip
+            tooltip.style('opacity', 1);
+
+            // Highlight the hovered circle slightly
+            d3.select(this).attr('r', 6).attr('stroke-width', 2);
+          })
+          .on('mouseout', function () {
+            // Hide tooltip
+            tooltip.style('opacity', 0);
+
+            // Reset circle appearance
+            d3.select(this).attr('r', 4).attr('stroke-width', 1);
+          });
+
+        // Remove the entire focus group and its related code
+        // Also remove the duplicate updateTooltip function
+
+        function brushed(event) {
+          if (!event.selection) return;
+
+          const [x0, x1] = event.selection.map(xScale2.invert);
+          xScale.domain([x0, x1]);
+
+          const filtered = fireweedData.filter(
+            (d) => d.ctime >= x0 && d.ctime <= x1
+          );
+          // New Y-Scale logic with 5% padding on both sides
+          const yMin =
+            filtered.length > 0 ? d3.min(filtered, (d) => d.metric) * 0.95 : 0;
+          const yMax =
+            filtered.length > 0
+              ? d3.max(filtered, (d) => d.metric) * 1.05
+              : yScale.domain()[1];
+          yScale.domain([yMin, yMax]); // Updated domain with padding
+
+          const t = svg.transition().duration(400);
+
+          xAxisGroup.transition(t).call(xAxis);
+          yAxisGroup.transition(t).call(yAxis);
+          chart.select('.x-grid').transition(t).call(xGrid.scale(xScale));
+          chart.select('.y-grid').transition(t).call(yGrid.scale(yScale));
+
+          branchLines.transition(t).attr('d', ([, data]) => line(data));
+
+          // Update circles - key changes here!
+          branchCircles
+            .transition(t)
+            .attr('cx', (d) => xScale(d.ctime))
+            .attr('cy', (d) => yScale(d.metric))
+            .attr('opacity', (d) => (d.ctime >= x0 && d.ctime <= x1 ? 1 : 0));
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pgperffarm-reporter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: 'IBM Plex Mono';
+      }
+      html,
+      body {
+        scrollbar-width: thin;
+        scrollbar-color: #a0aec0 #ebeef3;
+      }
+      .custom-select {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+
+        padding: 10px 2.5rem 10px 12px; /* Top/bottom = 10px, right = space for arrow, left = 12px */
+        font-size: 0.875rem; /* Decrease font size to ~14px */
+        color: #9ca3af;
+
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        background-color: white;
+
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='9' viewBox='0 0 15 9' fill='none'%3E%3Cpath d='M13.7033 1.55164L7.63536 7.61962L1.56738 1.55164' stroke='%239CA3AF' stroke-width='1.72521' stroke-miterlimit='10' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.75rem center;
+        background-size: 1rem;
+
+        width: 300px;
+        cursor: pointer;
+
+        /* Remove default focus outline */
+        outline: none;
+
+        transition: background-image 0.1s ease;
+      }
+
+      .custom-select:focus {
+        border-color: #b5b6b9;
+        color: #62676e;
+
+        /* Flipped arrow SVG */
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='9' viewBox='0 0 15 9' fill='none'%3E%3Cpath d='M1.56738 7.44836L7.63536 1.38038L13.7033 7.44836' stroke='%239CA3AF' stroke-width='1.72521' stroke-miterlimit='10' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      }
+
+      .custom-date-input {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+
+        padding: 10px 2.5rem 10px 12px; /* top/bottom, right (for icon), left */
+        font-size: 14px;
+        color: #4b5563;
+
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='23' viewBox='0 0 20 23' fill='none'%3E%3Cpath d='M17.8731 2.85137H16.8951V1.87339C16.8951 1.33551 16.455 0.895416 15.9172 0.895416C15.3793 0.895416 14.9392 1.33551 14.9392 1.87339V2.85137H5.15941V1.87339C5.15941 1.33551 4.71932 0.895416 4.18144 0.895416C3.64355 0.895416 3.20346 1.33551 3.20346 1.87339V2.85137H2.22548C1.14971 2.85137 0.269531 3.73155 0.269531 4.80732V20.4549C0.269531 21.5307 1.14971 22.4109 2.22548 22.4109H17.8731C18.9489 22.4109 19.8291 21.5307 19.8291 20.4549V4.80732C19.8291 3.73155 18.9489 2.85137 17.8731 2.85137ZM16.8951 20.4549H3.20346C2.66557 20.4549 2.22548 20.0149 2.22548 19.477V7.74125H17.8731V19.477C17.8731 20.0149 17.433 20.4549 16.8951 20.4549Z' fill='%23326690'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.75rem center;
+        background-size: 1rem;
+
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <header
+      class="h-20 border-b border-[#E0E0E0]-100 bg-white flex items-center justify-between px-2 cursor-none"
+    >
+      <div class="flex items-center">
+        <img
+          src="https://www.postgresql.org/media/img/about/press/elephant.png"
+          alt="PostgreSQL"
+          class="h-10 w-auto mr-2"
+        />
+        <h1
+          style="
+            color: #000;
+            font-size: 20px;
+            font-style: normal;
+            font-weight: 500;
+            line-height: normal;
+          "
+        >
+          PostgreSQL Performance Analysis
+        </h1>
+      </div>
+
+      <div>
+        <h4>Time</h4>
+        <h4>Commit</h4>
+      </div>
+    </header>
+    <main class="px-8">
+      <!-- Test and Machine Name (Heading) -->
+      <section class="mt-16 mb-4">
+        <h1 class="font-medium text-[20px]">
+          (Test name) performance on (machine name)
+        </h1>
+      </section>
+
+      <!-- Filters Section -->
+      <section class="flex space-x-40">
+        <div>
+          <label
+            for="selectScale"
+            class="block text-sm font-medium text-black mb-1"
+            >Scale</label
+          >
+          <select id="selectScale" name="selectScale" class="custom-select">
+            <option value="">Select Scale</option>
+          </select>
+        </div>
+
+        <div>
+          <label
+            for="chooseBranches"
+            class="block text-sm font-medium text-black mb-1"
+            >Choose Branches</label
+          >
+          <select
+            id="chooseBranches"
+            name="chooseBranches"
+            class="custom-select"
+          >
+            <option value="">Choose Branches...</option>
+          </select>
+          <div id="selectedBranchesDisplay" class="mt-2.5 flex flex-wrap"></div>
+        </div>
+
+        <div>
+          <label
+            style="
+              font-size: 14px;
+              font-weight: 500;
+              color: black;
+              margin-bottom: 4px;
+              display: block;
+            "
+            >Date Range</label
+          >
+          <div style="display: flex; gap: 8px">
+            <!-- From Date -->
+            <div style="flex: 1">
+              <label
+                for="dateFrom"
+                style="font-size: 12px; color: #6b7280"
+              ></label>
+              <input
+                type="date"
+                id="dateFrom"
+                name="dateFrom"
+                class="custom-date-input"
+              />
+            </div>
+
+            <!-- To Date -->
+            <div style="flex: 1">
+              <label
+                for="dateTo"
+                style="font-size: 12px; color: #6b7280"
+              ></label>
+              <input
+                type="date"
+                id="dateTo"
+                name="dateTo"
+                class="custom-date-input"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

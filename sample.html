@@ -29,6 +29,7 @@
         transition: opacity 0.2s ease-in-out;
         z-index: 1000;
         min-width: 300px;
+        pointer-events: none;
       }
       .tooltip .tooltip-date {
         font-size: 12px;
@@ -175,25 +176,61 @@
           if (!response.ok)
             throw new Error(`Failed to load CSV file: ${response.status}`);
           const csvText = await response.text();
-
           const rawData = parseCSV(csvText);
 
-          if (!rawData || !Array.isArray(rawData))
-            throw new Error('Invalid data format in CSV file');
-          if (rawData.length === 0)
-            throw new Error('No data found in CSV file');
+          if (!rawData || !Array.isArray(rawData)) {
+            throw new Error('Invalid data format received from CSV parser');
+          }
 
-          allData = rawData.map((d) => ({
-            branch: d.branch,
-            revision: d.revision,
-            scale: +d.scale,
-            ctime: new Date(d.ctime * 1000),
-            metric: +d.metric,
-            complete_at: new Date(d.complete_at * 1000),
-            test: 'dbt2',
-            machine: 'fireweed',
-            commit_message: `Commit ${d.revision.substring(0, 7)}`,
-          }));
+          const EARLIEST_ACCEPTABLE_YEAR = 2010;
+
+          allData = rawData
+            .map((d) => {
+              const ctimeNum = d.ctime ? parseFloat(d.ctime) : NaN;
+              const ctimeMs = !isNaN(ctimeNum) ? ctimeNum * 1000 : NaN;
+
+              const completeAtNum = d.complete_at
+                ? parseFloat(d.complete_at)
+                : NaN;
+              const completeAtMs = !isNaN(completeAtNum)
+                ? completeAtNum * 1000
+                : NaN;
+
+              const revisionStr = d.revision || '';
+
+              return {
+                branch: d.branch,
+                revision: revisionStr,
+                scale: +d.scale,
+                ctime: !isNaN(ctimeMs) ? new Date(ctimeMs) : null,
+                metric: +d.metric,
+                complete_at: !isNaN(completeAtMs)
+                  ? new Date(completeAtMs)
+                  : null,
+                test: 'dbt2',
+                machine: 'fireweed',
+                commit_message: `Commit ${
+                  revisionStr ? revisionStr.substring(0, 7) : 'N/A'
+                }`,
+              };
+            })
+            .filter((d) => {
+              if (!d.ctime || isNaN(d.ctime.getTime())) {
+                return false;
+              }
+              if (d.ctime.getFullYear() < EARLIEST_ACCEPTABLE_YEAR) {
+                return false;
+              }
+              return true;
+            });
+
+          if (rawData.length > 0 && allData.length === 0) {
+            console.warn(
+              'All data points were filtered out. Check ctime values in CSV and EARLIEST_ACCEPTABLE_YEAR setting.'
+            );
+          } else if (allData.length === 0 && rawData.length === 0) {
+            console.warn('No data found in CSV file after parsing.');
+          }
 
           setupChart();
           updateChartUI(allData);
@@ -343,7 +380,6 @@
           .duration(300)
           .call(d3.axisLeft(y).ticks(5).tickFormat(d3.format(',')));
 
-        // Adjust grid lines
         const xTickValues = xAxisG
           .selectAll('.tick')
           .data()
@@ -390,7 +426,6 @@
         const dataByBranch = d3.group(dataToDraw, (d) => d.branch);
         color.domain(dataByBranch.keys());
 
-        // Draw lines
         const series = mainGroup
           .selectAll('.data-series-group')
           .data(Array.from(dataByBranch), ([branch]) => branch);
@@ -470,7 +505,7 @@
           hour: '2-digit',
           minute: '2-digit',
         });
-        const shortHash = d.revision.substring(0, 7);
+        const shortHash = d.revision ? d.revision.substring(0, 7) : 'N/A';
         const commitLink = `https://github.com/postgres/postgres/commit/${d.revision}`;
 
         tooltipD3.transition().duration(100).style('opacity', 0.95);
@@ -511,7 +546,6 @@
         const tooltipHeight = tooltipNode.offsetHeight;
         const tooltipWidth = tooltipNode.offsetWidth;
 
-        // Adjust position if tooltip would go off screen
         if (left + tooltipWidth > window.innerWidth + window.scrollX - 10) {
           left =
             mainGroupRect.left -

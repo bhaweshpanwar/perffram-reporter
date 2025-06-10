@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>D3 Focus + Context Chart</title>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 20px;
+      }
+      .chart-container {
+        margin-bottom: 20px;
+      }
+      svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .line {
+        fill: none;
+        stroke-width: 1.5px;
+      }
+      .context-line {
+        fill: none;
+        stroke-width: 1px;
+      }
+      .axis path,
+      .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+      }
+      .axis text {
+        font-size: 10px;
+      }
+      .brush .selection {
+        fill: steelblue;
+        fill-opacity: 0.3;
+      }
+      .tooltip {
+        position: absolute;
+        visibility: hidden;
+        background: #f9f9f9;
+        border: 1px solid #aaa;
+        padding: 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        pointer-events: none; /* Important for mouse events to pass through to chart elements */
+      }
+      .filter-controls label {
+        margin-right: 5px;
+      }
+      .filter-controls select,
+      .filter-controls input {
+        margin-right: 15px;
+        padding: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Performance Data with Focus + Context</h1>
+
+    <div class="filter-controls">
+      <label for="scaleSelect">Scale:</label>
+      <select id="scaleSelect"></select>
+
+      <label for="branchSelect">Branches (Ctrl/Cmd for multi-select):</label>
+      <select id="branchSelect" multiple size="5"></select>
+    </div>
+
+    <div class="chart-container">
+      <svg id="focusChart"></svg>
+    </div>
+    <div class="chart-container">
+      <svg id="contextChart"></svg>
+    </div>
+
+    <div id="tooltip" class="tooltip"></div>
+
+    <script>
+      let allRawData = [];
+      let currentFilteredData = []; // Data filtered by scale and branch, for context chart
+
+      const DOMElements = {
+        scaleSelect: document.getElementById('scaleSelect'),
+        branchSelect: document.getElementById('branchSelect'),
+        focusSvg: d3.select('#focusChart'),
+        contextSvg: d3.select('#contextChart'),
+        tooltip: d3.select('#tooltip'),
+      };
+
+      const margin = { top: 20, right: 30, bottom: 30, left: 50 };
+      const focusChartHeight = 400;
+      const contextChartHeight = 100;
+      let width; // Will be set on resize
+
+      // Scales
+      const xFocus = d3.scaleUtc();
+      const yFocus = d3.scaleLinear();
+      const xContext = d3.scaleUtc();
+      const yContext = d3.scaleLinear();
+      const branchColors = d3.scaleOrdinal(d3.schemeTableau10);
+
+      // Line generators
+      const lineFocus = d3
+        .line()
+        .defined((d) => !isNaN(d.metric))
+        .x((d) => xFocus(d.ctime))
+        .y((d) => yFocus(d.metric));
+
+      const lineContext = d3
+        .line()
+        .defined((d) => !isNaN(d.metric))
+        .x((d) => xContext(d.ctime))
+        .y((d) => yContext(d.metric));
+
+      // Axis groups (will be appended once SVG is sized)
+      let gxFocus, gyFocus, gxContext;
+      let focusChartGroup, contextChartGroup, brushGroup;
+
+      async function loadAndProcessData() {
+        const rawData = d3.csvParse(await d3.text('./fireweed.csv'));
+        allRawData = rawData
+          .map((d) => ({
+            branch: d.branch,
+            revision: d.revision,
+            scale: +d.scale,
+            ctime: new Date(+d.ctime * 1000),
+            metric: +d.metric,
+          }))
+          .filter(
+            (d) =>
+              d.ctime instanceof Date &&
+              !isNaN(d.ctime) &&
+              !isNaN(d.metric) &&
+              d.branch &&
+              !isNaN(d.scale)
+          )
+          .sort((a, b) => a.ctime - b.ctime); // Sort by time globally once
+
+        populateFilters();
+        setupCharts();
+        addEventListeners();
+        updateVisualization(); // Initial render
+      }
+
+      function populateFilters() {
+        const scales = Array.from(new Set(allRawData.map((d) => d.scale))).sort(
+          (a, b) => a - b
+        );
+        DOMElements.scaleSelect.innerHTML = scales
+          .map((s) => `<option value="${s}">${s}</option>`)
+          .join('');
+        if (scales.length > 0) DOMElements.scaleSelect.value = scales[0];
+
+        const branches = Array.from(
+          new Set(allRawData.map((d) => d.branch))
+        ).sort();
+        DOMElements.branchSelect.innerHTML = branches
+          .map((b) => `<option value="${b}" selected>${b}</option>`)
+          .join('');
+        // Ensure all are selected initially if "multiple" is used,
+        // or a default subset. For this example, all are pre-selected.
+      }
+
+      function setupCharts() {
+        const container = DOMElements.focusSvg.node().parentElement;
+        width = 700;
+
+        // DOMElements.focusSvg
+        //   .attr('width', width + margin.left + margin.right)
+        //   .attr('height', focusChartHeight + margin.top + margin.bottom);
+        // DOMElements.contextSvg
+        //   .attr('width', width + margin.left + margin.right)
+        //   .attr('height', contextChartHeight + margin.top + margin.bottom);
+
+        DOMElements.focusSvg
+          .attr('width', '100%') // Use percentage for responsive width
+          .attr('height', focusChartHeight + margin.top + margin.bottom)
+          .attr(
+            'viewBox',
+            `0 0 ${width + margin.left + margin.right} ${
+              focusChartHeight + margin.top + margin.bottom
+            }`
+          );
+
+        DOMElements.contextSvg
+          .attr('width', '100%') // Use percentage for responsive width
+          .attr('height', contextChartHeight + margin.top + margin.bottom)
+          .attr(
+            'viewBox',
+            `0 0 ${width + margin.left + margin.right} ${
+              contextChartHeight + margin.top + margin.bottom
+            }`
+          );
+
+        focusChartGroup = DOMElements.focusSvg
+          .append('g')
+          .attr('transform', `translate(${margin.left},${margin.top})`);
+        contextChartGroup = DOMElements.contextSvg
+          .append('g')
+          .attr('transform', `translate(${margin.left},${margin.top})`);
+
+        // Clip path for focus chart
+        focusChartGroup
+          .append('defs')
+          .append('clipPath')
+          .attr('id', 'clip-focus-main')
+          .append('rect')
+          .attr('width', width)
+          .attr('height', focusChartHeight);
+
+        gxFocus = focusChartGroup.append('g').attr('class', 'axis axis--x');
+        gyFocus = focusChartGroup.append('g').attr('class', 'axis axis--y');
+        gxContext = contextChartGroup.append('g').attr('class', 'axis axis--x');
+
+        const brush = d3
+          .brushX()
+          .extent([
+            [0, 0],
+            [width, contextChartHeight],
+          ])
+          .on('brush end', brushed);
+
+        brushGroup = contextChartGroup
+          .append('g')
+          .attr('class', 'brush')
+          .call(brush);
+      }
+
+      function addEventListeners() {
+        DOMElements.scaleSelect.addEventListener('change', updateVisualization);
+        DOMElements.branchSelect.addEventListener(
+          'change',
+          updateVisualization
+        );
+        window.addEventListener('resize', () => {
+          // Basic resize handling: re-run setup and update
+          // A more sophisticated resize would update scales and redraw without full setup
+          DOMElements.focusSvg.selectAll('*').remove();
+          DOMElements.contextSvg.selectAll('*').remove();
+          setupCharts();
+          updateVisualization();
+        });
+      }
+
+      //   function brushed(event) {
+      //     if (!event.sourceEvent) return; // Only transition after input.
+      //     if (!event.selection) {
+      //       // If brush is cleared
+      //       xFocus.domain(xContext.domain()); // Reset focus to full context range
+      //     } else {
+      //       xFocus.domain(event.selection.map(xContext.invert, xContext));
+      //     }
+
+      //     // --- FIX STARTS HERE ---
+      //     // Recalculate the y-domain based on the data visible in the new x-domain
+      //     const dataInFocus = currentFilteredData.filter(
+      //       (d) => d.ctime >= xFocus.domain()[0] && d.ctime <= xFocus.domain()[1]
+      //     );
+
+      //     // Update the y-domain. If no data in selection, keep the previous domain to avoid errors.
+      //     if (dataInFocus.length > 0) {
+      //       yFocus.domain(d3.extent(dataInFocus, (d) => d.metric)).nice();
+      //     }
+
+      //     // Redraw the Y-axis with the new scale
+      //     gyFocus.call(d3.axisLeft(yFocus).ticks(focusChartHeight / 40));
+      //     // --- FIX ENDS HERE ---
+
+      //     // Update focus chart elements
+      //     focusChartGroup.selectAll('.line').attr('d', (d) => lineFocus(d[1]));
+      //     focusChartGroup
+      //       .selectAll('.dot-group')
+      //       .selectAll('.dot')
+      //       .attr('cx', (d) => xFocus(d.ctime))
+      //       .attr('cy', (d) => yFocus(d.metric));
+      //     gxFocus.call(
+      //       d3
+      //         .axisBottom(xFocus)
+      //         .ticks(width / 80)
+      //         .tickSizeOuter(0)
+      //     );
+
+      //     // Update brush handle positions (if needed, though D3 usually handles this)
+      //     // DOMElements.focusSvg.property("value", xFocus.domain()).dispatch("input"); // If using Observable-like value propagation
+      //   }
+
+      function brushed(event) {
+        if (!event.sourceEvent) return; // Only transition after input.
+
+        const selection = event.selection;
+        if (!selection) {
+          // If brush is cleared, reset focus to full context range
+          xFocus.domain(xContext.domain());
+        } else {
+          // Set focus domain to the brushed selection
+          xFocus.domain(selection.map(xContext.invert, xContext));
+        }
+
+        // --- FIX STARTS HERE ---
+        // Recalculate the y-domain based on the data visible in the new x-domain
+        const dataInFocus = currentFilteredData.filter(
+          (d) => d.ctime >= xFocus.domain()[0] && d.ctime <= xFocus.domain()[1]
+        );
+
+        // Update the y-domain. If no data in selection, keep the previous domain to avoid errors.
+        if (dataInFocus.length > 0) {
+          yFocus.domain(d3.extent(dataInFocus, (d) => d.metric)).nice();
+        }
+
+        // Redraw the Y-axis with the new scale
+        gyFocus.call(d3.axisLeft(yFocus).ticks(focusChartHeight / 40));
+        // --- FIX ENDS HERE ---
+
+        // Update focus chart elements to reflect the new domains
+        focusChartGroup.selectAll('.line').attr('d', (d) => lineFocus(d[1]));
+
+        focusChartGroup
+          .selectAll('.dot-group')
+          .selectAll('.dot')
+          .attr('cx', (d) => xFocus(d.ctime))
+          .attr('cy', (d) => yFocus(d.metric)); // This will now use the updated yFocus scale
+
+        // Update the X-axis
+        gxFocus.call(
+          d3
+            .axisBottom(xFocus)
+            .ticks(width / 80)
+            .tickSizeOuter(0)
+        );
+      }
+
+      function updateVisualization() {
+        const selectedScale = +DOMElements.scaleSelect.value;
+        const selectedBranches = Array.from(
+          DOMElements.branchSelect.selectedOptions
+        ).map((opt) => opt.value);
+
+        currentFilteredData = allRawData.filter(
+          (d) =>
+            d.scale === selectedScale && selectedBranches.includes(d.branch)
+        );
+
+        if (currentFilteredData.length === 0) {
+          focusChartGroup.selectAll('*').remove(); // Clear focus
+          contextChartGroup.selectAll('*').remove(); // Clear context
+          focusChartGroup
+            .append('text')
+            .attr('x', width / 2)
+            .attr('y', focusChartHeight / 2)
+            .attr('text-anchor', 'middle')
+            .text('No data for selection.');
+          // Re-append brush group if it was cleared by selectAll("*")
+          if (brushGroup && contextChartGroup.select('.brush').empty()) {
+            brushGroup = contextChartGroup
+              .append('g')
+              .attr('class', 'brush')
+              .call(
+                d3
+                  .brushX()
+                  .extent([
+                    [0, 0],
+                    [width, contextChartHeight],
+                  ])
+                  .on('brush end', brushed)
+              );
+          }
+          return;
+        }
+        focusChartGroup.select('text').remove(); // Remove no data message if present
+
+        // Update scales
+        xContext
+          .domain(d3.extent(currentFilteredData, (d) => d.ctime))
+          .range([0, width]);
+        yContext
+          .domain(d3.extent(currentFilteredData, (d) => d.metric))
+          .nice()
+          .range([contextChartHeight, 0]);
+
+        // If xFocus domain is not yet set by a brush, set it to the full context domain
+        if (!d3.brushSelection(brushGroup.node())) {
+          // Check if brush has a selection
+          xFocus.domain(xContext.domain());
+        }
+        // yFocus domain depends on data visible in focus chart (initially all, then brushed range)
+        const currentXFocusDomain = xFocus.domain();
+        const dataInFocus = currentFilteredData.filter(
+          (d) =>
+            d.ctime >= currentXFocusDomain[0] &&
+            d.ctime <= currentXFocusDomain[1]
+        );
+        yFocus
+          .domain(d3.extent(dataInFocus, (d) => d.metric))
+          .nice()
+          .range([focusChartHeight, 0]);
+
+        branchColors.domain(selectedBranches);
+        const dataGroupedByBranch = d3.group(
+          currentFilteredData,
+          (d) => d.branch
+        );
+
+        // --- Draw Context Chart ---
+        gxContext.attr('transform', `translate(0,${contextChartHeight})`).call(
+          d3
+            .axisBottom(xContext)
+            .ticks(width / 80)
+            .tickSizeOuter(0)
+        );
+
+        contextChartGroup
+          .selectAll('.context-line')
+          .data(dataGroupedByBranch)
+          .join('path')
+          .attr('class', 'context-line')
+          .attr('fill', 'none')
+          .attr('stroke', (d) => branchColors(d[0]))
+          .attr('d', (d) => lineContext(d[1]));
+
+        // Update brush (important if data changes significantly)
+        const brushBehavior = d3
+          .brushX()
+          .extent([
+            [0, 0],
+            [width, contextChartHeight],
+          ])
+          .on('brush end', brushed);
+        brushGroup.call(brushBehavior);
+        // If no active brush selection, or if you want to reset brush to full on filter change:
+        if (!d3.brushSelection(brushGroup.node()) || event?.type === 'change') {
+          // Reset brush on filter change
+          brushGroup.call(brushBehavior.move, xContext.range());
+        }
+
+        // --- Draw Focus Chart ---
+        gxFocus.attr('transform', `translate(0,${focusChartHeight})`).call(
+          d3
+            .axisBottom(xFocus)
+            .ticks(width / 80)
+            .tickSizeOuter(0)
+        );
+        gyFocus.call(d3.axisLeft(yFocus).ticks(focusChartHeight / 40));
+
+        focusChartGroup
+          .selectAll('.line') // Lines in focus chart, within clip path
+          .data(dataGroupedByBranch)
+          .join(
+            (enter) =>
+              enter
+                .append('path')
+                .attr('class', 'line')
+                .attr('fill', 'none')
+                .attr('stroke', (d) => branchColors(d[0]))
+                .attr('stroke-width', 1.5)
+                .attr('clip-path', 'url(#clip-focus-main)')
+                .attr('d', (d) => lineFocus(d[1])),
+            (update) =>
+              update
+                .attr('stroke', (d) => branchColors(d[0]))
+                .attr('d', (d) => lineFocus(d[1])),
+            (exit) => exit.remove()
+          );
+
+        focusChartGroup.selectAll('.dot-group').remove(); // Clear old dot groups
+        const dotGroups = focusChartGroup
+          .selectAll('.dot-group')
+          .data(dataGroupedByBranch)
+          .join('g')
+          .attr('class', 'dot-group')
+          .attr('fill', (d) => branchColors(d[0]))
+          .attr('clip-path', 'url(#clip-focus-main)');
+
+        dotGroups
+          .selectAll('.dot')
+          .data((d) => d[1]) // d[1] is array of points for the branch
+          .join('circle')
+          .attr('class', 'dot')
+          .attr('r', 2.5)
+          .attr('cx', (d) => xFocus(d.ctime))
+          .attr('cy', (d) => yFocus(d.metric))
+          .on('mouseover', (event, d_point) => {
+            DOMElements.tooltip
+              .style('visibility', 'visible')
+              .html(
+                `Branch: ${d_point.branch}<br/>Metric: ${d3.format(',.2f')(
+                  d_point.metric
+                )}<br/>Date: ${d_point.ctime.toLocaleDateString()}`
+              );
+          })
+          .on('mousemove', (event) => {
+            DOMElements.tooltip
+              .style('top', event.pageY - 10 + 'px')
+              .style('left', event.pageX + 10 + 'px');
+          })
+          .on('mouseout', () => {
+            DOMElements.tooltip.style('visibility', 'hidden');
+          });
+      }
+
+      loadAndProcessData();
+    </script>
+  </body>
+</html>

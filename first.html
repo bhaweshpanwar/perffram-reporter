@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pgperffarm-reporter</title>
+    <!-- Tailwind CSS script removed -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <style>
+      /* --- Global & Base Styles --- */
+      :root {
+        --border-color: #e5e7eb;
+        --text-primary: #000;
+        --text-secondary: #6b7280;
+        --text-placeholder: #9ca3af;
+        --brand-blue: #326690;
+        --background-light: #ffffff;
+        --background-page: #ffffff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'IBM Plex Mono', monospace;
+        /* font-family: Arial, Helvetica, sans-serif; */
+        /* font-family: 'Inter', sans-serif; */
+        /* font-family: 'Figtree', sans-serif; */
+        /* font-family: 'JetBrains Mono', monospace; */
+        background-color: var(--background-page);
+        margin: 0;
+        color: var(--text-primary);
+      }
+
+      html,
+      body {
+        scrollbar-width: thin;
+        scrollbar-color: #a0aec0 #ebeef3;
+      }
+
+      /* --- Page Layout --- */
+      .page-container {
+        max-width: 1400px; /* Equivalent to max-w-3xl/4xl for a comfortable width */
+        margin: 0 auto;
+        background-color: var(--background-light);
+        min-height: 100vh;
+      }
+
+      /* --- Header --- */
+      .header {
+        height: 80px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 8px;
+      }
+
+      .header__branding {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .header__logo {
+        height: 40px;
+        width: auto;
+      }
+
+      .header__title {
+        color: #000;
+        font-size: 20px;
+        font-weight: 500;
+        margin: 0;
+        font-style: normal;
+        font-weight: 500;
+        line-height: normal;
+      }
+
+      .header__meta {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-weight: 500;
+        font-weight: 100;
+      }
+
+      /* --- Main Content --- */
+      .main-content {
+        padding: 32px;
+      }
+
+      .report-heading-section {
+        margin-top: 32px;
+        margin-bottom: 20px;
+      }
+
+      .report-title {
+        font-weight: 500;
+        font-size: 20px;
+        margin: 0;
+      }
+
+      /* --- Filter Section --- */
+      .filter-section {
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .filter-group {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .form-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: black;
+        margin-bottom: 8px;
+      }
+
+      /* --- Custom Form Controls --- */
+      .form-select {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        padding: 10px 40px 10px 12px;
+        font-size: 14px;
+        color: var(--text-placeholder);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background-color: var(--background-light);
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='9' viewBox='0 0 15 9' fill='none'%3E%3Cpath d='M13.7033 1.55164L7.63536 7.61962L1.56738 1.55164' stroke='%239CA3AF' stroke-width='1.72521' stroke-miterlimit='10' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 1rem;
+        width: 300px;
+        cursor: pointer;
+        outline: none;
+        transition: border-color 0.2s ease;
+        font-family: 'IBM Plex Mono', monospace;
+      }
+
+      .form-select:focus {
+        border-color: #b5b6b9;
+        color: var(--text-secondary);
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='9' viewBox='0 0 15 9' fill='none'%3E%3Cpath d='M1.56738 7.44836L7.63536 1.38038L13.7033 7.44836' stroke='%239CA3AF' stroke-width='1.72521' stroke-miterlimit='10' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      }
+
+      /* --- Responsive Styles (Mobile First Approach) --- */
+      @media (max-width: 768px) {
+        /* Responsive Header */
+        .header {
+          flex-direction: column;
+          height: auto;
+          align-items: flex-start;
+          gap: 16px;
+          padding: 16px;
+        }
+
+        .header__logo {
+          height: 32px; /* Smaller logo */
+        }
+        .header__title {
+          font-size: 18px; /* Smaller title */
+        }
+        .header__meta {
+          width: 100%;
+          padding-top: 16px;
+          border-top: 1px solid var(--border-color); /* The requested "line break" */
+          justify-content: space-between;
+          font-size: 14px;
+        }
+
+        /* Responsive Main Content */
+        .main-content {
+          padding: 16px;
+        }
+        .report-heading-section {
+          margin-top: 16px;
+          margin-bottom: 32px;
+        }
+
+        /* Responsive Filters */
+        .filter-section {
+          flex-direction: column;
+          gap: 24px;
+        }
+        .form-select,
+        .date-range-inputs {
+          width: 100%;
+        }
+        .date-input-wrapper {
+          flex: 1; /* Make date inputs share space */
+        }
+        .form-date-input {
+          width: 100%;
+        }
+      }
+
+      .tooltip {
+        position: absolute;
+        opacity: 0;
+        background-color: white;
+        color: #333;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border: 1px solid #e2e8f0;
+        /* pointer-events: none; /*  Removed: will be toggled by JS */
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: nowrap;
+        transition: opacity 0.2s ease-in-out;
+        z-index: 1000;
+        min-width: 300px;
+      }
+      .tooltip .tooltip-date {
+        font-size: 12px;
+        color: #718096;
+        margin-bottom: 10px;
+        padding-bottom: 5px;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .tooltip strong {
+        font-weight: 600;
+        color: #4a5568;
+        display: inline-block;
+        min-width: 100px;
+      }
+      .tooltip .version-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+      .tooltip .version-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+        display: inline-block;
+        flex-shrink: 0;
+      }
+      .tooltip .version-name {
+        flex-grow: 1;
+        margin-right: 10px;
+      }
+      .tooltip .version-value {
+        font-weight: 600;
+        text-align: right;
+      }
+      .tooltip .commit-details {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid #e2e8f0;
+      }
+      .tooltip .commit-message {
+        display: block;
+        margin-top: 5px;
+        max-width: 280px;
+        white-space: normal;
+        color: #718096;
+        font-style: italic;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      .tooltip a {
+        color: #4299e1;
+        text-decoration: none;
+        display: block;
+        margin-top: 8px;
+        font-size: 12px;
+        pointer-events: auto !important; /* Ensure link is always clickable if tooltip is visible */
+      }
+      .tooltip a:hover {
+        text-decoration: underline;
+      }
+
+      .branch-legend {
+        margin-top: 20px;
+        text-align: center;
+      }
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        margin: 0 8px 8px 8px;
+        font-size: 12px;
+        cursor: pointer;
+        opacity: 1;
+        transition: opacity 0.2s;
+        padding: 4px 6px;
+        border-radius: 4px;
+      }
+      .legend-item:hover {
+        background-color: #f3f4f6;
+      }
+      .legend-item.inactive {
+        opacity: 0.4;
+      }
+      .legend-color {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        margin-right: 6px;
+        border-radius: 3px;
+        flex-shrink: 0;
+      }
+
+      .axis path,
+      .axis line {
+        stroke: #d1d5db;
+        shape-rendering: crispEdges;
+      }
+      .axis text {
+        fill: #4b5563;
+        font-size: 11px;
+      }
+      .grid .tick line {
+        stroke: #e5e7eb;
+        stroke-opacity: 0.7;
+      }
+      .grid path {
+        stroke-width: 0;
+      }
+      text.axis-label {
+        fill: #1f2937;
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .branch-pill {
+        display: inline-flex;
+        align-items: center;
+        background-color: #ebf4ff;
+        color: #2563eb;
+        padding: 4px 10px;
+        border-radius: 16px;
+        font-size: 0.875rem;
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+      }
+      .branch-pill-remove {
+        margin-left: 0.75rem;
+        cursor: pointer;
+        font-weight: bold;
+        color: #1d4ed8;
+      }
+      .branch-pill-remove:hover {
+        color: #1e3a8a;
+      }
+      #selectedBranchesDisplay .branch-pill:last-child {
+        margin-right: 0;
+      }
+      input[type='date']::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: 0.6;
+        transition: opacity 0.2s;
+      }
+      input[type='date']::-webkit-calendar-picker-indicator:hover {
+        opacity: 1;
+      }
+      .view-mode-active {
+        background-color: #3b82f6 !important;
+        color: white !important;
+        border-color: #2563eb !important;
+      }
+      .view-mode-inactive {
+        background-color: white !important;
+        color: #374151 !important;
+      }
+      .view-mode-inactive:hover {
+        background-color: #f9fafb !important;
+      }
+      .clickable-commit:hover {
+        text-decoration: underline !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-container">
+      <header class="header">
+        <div class="header__branding">
+          <img
+            src="https://www.postgresql.org/media/img/about/press/elephant.png"
+            alt="PostgreSQL Logo"
+            class="header__logo"
+          />
+          <h1 class="header__title">PostgreSQL Performance Analysis</h1>
+        </div>
+        <div class="header__meta">
+          <span>Time</span>
+          <span>Commit</span>
+        </div>
+      </header>
+      <main class="main-content">
+        <!-- Test and Machine Name (Heading) -->
+        <section class="report-heading-section">
+          <h2 class="report-title">
+            (Test name) performance on (machine name)
+          </h2>
+        </section>
+
+        <!-- Filters Section -->
+        <section class="filter-section">
+          <div class="filter-group">
+            <label for="chooseScale" class="form-label">Scale</label>
+            <select id="chooseScale" name="chooseScale" class="form-select">
+              <!-- <option value="">Select Scale</option> -->
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="chooseBranches" class="form-label"
+              >Choose Branches</label
+            >
+            <select
+              id="chooseBranches"
+              name="chooseBranches"
+              class="form-select"
+            >
+              <!-- <option value="">Choose Branches...</option> -->
+            </select>
+            <div
+              id="selectedBranchesDisplay"
+              class="selected-branches-display"
+            ></div>
+          </div>
+
+          <!-- <div class="filter-group">
+            <label class="form-label">Date Range</label>
+            <div class="date-range-inputs">
+              <div class="date-input-wrapper">
+                <input
+                  type="date"
+                  id="dateFrom"
+                  name="dateFrom"
+                  class="form-date-input"
+                />
+              </div>
+              <div class="date-input-wrapper">
+                <input
+                  type="date"
+                  id="dateTo"
+                  name="dateTo"
+                  class="form-date-input"
+                />
+              </div>
+            </div>
+          </div> -->
+        </section>
+
+        <div id="chartContainer">
+          <div
+            id="activeFiltersDisplay"
+            class="active-filters-display-class"
+          ></div>
+          <svg id="chart" width="100%" height="500f"></svg>
+          <!-- <svg id="contextChart"></svg> -->
+        </div>
+        <div id="legend" class="branch-legend mt-4"></div>
+        <div id="tooltip" class="tooltip" style="pointer-events: none"></div>
+        <!-- <div class="text-xs text-gray-500 mt-4 space-y-1">
+          <p>
+            <span class="inline-block mr-1 align-middle"
+              ><svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                class="w-4 h-4"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z"
+                  clip-rule="evenodd"
+                /></svg
+            ></span>
+            Click on any data point to view detailed commit information.
+          </p>
+          <p>
+            <span class="inline-block mr-1 align-middle"
+              ><svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                class="w-4 h-4"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z"
+                  clip-rule="evenodd"
+                /></svg
+            ></span>
+            Click on any branch in the legend to select/deselect it.
+          </p>
+        </div> -->
+      </main>
+    </div>
+  </body>
+  <script src="./newScript.js"></script>
+</html>
