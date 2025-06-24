@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PostgreSQL Performance Analyzer | Fireweed DBT2</title>
+    <!-- Chart.js and necessary plugins -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+
+    <style>
+      :root {
+        --bg-main: #f8f9fa;
+        --bg-card: #ffffff;
+        --border-color: #dee2e6;
+        --text-primary: #212529;
+        --text-secondary: #6c757d;
+        --primary-blue: #0d6efd;
+        --primary-blue-hover: #0b5ed7;
+        --primary-blue-light: #e7f1ff;
+        --font-family-sans-serif: system-ui, -apple-system, 'Segoe UI', Roboto,
+          'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      body {
+        background-color: var(--bg-main);
+        color: var(--text-primary);
+        font-family: var(--font-family-sans-serif);
+        font-size: 16px;
+        line-height: 1.5;
+        margin: 0;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        display: grid;
+        gap: 1.5rem;
+      }
+      .dashboard-card {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        padding: 1.5rem;
+      }
+      h1 {
+        font-size: 2rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+      .description {
+        color: var(--text-secondary);
+        max-width: 80ch;
+        margin-bottom: 1rem;
+      }
+      .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.5rem;
+        align-items: end;
+      }
+      .filter-group label {
+        display: block;
+        font-weight: 500;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+      }
+      input[type='date'],
+      select,
+      button {
+        width: 100%;
+        font-family: inherit;
+        font-size: 1rem;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 0.375rem;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+      }
+      input[type='date']:focus,
+      select:focus {
+        border-color: var(--primary-blue);
+        outline: 0;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+      }
+      button {
+        cursor: pointer;
+        font-weight: 500;
+      }
+      .btn-primary {
+        background-color: var(--primary-blue);
+        color: #fff;
+        border-color: var(--primary-blue);
+      }
+      .btn-primary:hover {
+        background-color: var(--primary-blue-hover);
+        border-color: var(--primary-blue-hover);
+      }
+      .btn-secondary {
+        background-color: var(--bg-card);
+        color: var(--text-primary);
+        border-color: var(--border-color);
+      }
+      .btn-secondary:hover {
+        background-color: #f1f3f5;
+      }
+      .button-group {
+        display: flex;
+        gap: 0.75rem;
+      }
+
+      /* Custom Branch Dropdown */
+      .branch-select {
+        position: relative;
+      }
+      #branch-select-button {
+        text-align: left;
+        background-color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      #branch-select-button::after {
+        content: '▼';
+        font-size: 0.7em;
+      }
+      #branch-filter-dropdown {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 0.375rem;
+        z-index: 100;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        padding: 0.5rem;
+        margin-top: 0.25rem;
+      }
+      .branch-filter-actions {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 0.5rem;
+      }
+      .branch-filter-actions button {
+        font-size: 0.875rem;
+        color: var(--primary-blue);
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+      }
+      #branch-list-container {
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .branch-item {
+        display: flex;
+        align-items: center;
+        padding: 0.35rem 0.5rem;
+        border-radius: 0.25rem;
+        cursor: pointer;
+      }
+      .branch-item:hover {
+        background-color: #f1f3f5;
+      }
+      .branch-item label {
+        margin: 0 0 0 0.5rem;
+        font-weight: 400;
+        font-size: 1rem;
+        color: var(--text-primary);
+        cursor: pointer;
+        width: 100%;
+      }
+      input[type='checkbox'] {
+        height: 1rem;
+        width: 1rem;
+        cursor: pointer;
+      }
+
+      /* Chart Container Styles */
+      .chart-wrapper {
+        position: relative;
+        width: 100%;
+      }
+      #main-chart {
+        cursor: grab;
+      }
+      #main-chart:active {
+        cursor: grabbing;
+      }
+      .chart-container {
+        height: 500px;
+      }
+      .context-chart-container {
+        height: 120px;
+        margin-top: 1rem;
+      }
+      #context-chart {
+        cursor: crosshair;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <div class="header">
+        <h1>Fireweed DBT2 Performance Analyzer</h1>
+        <p class="description">
+          Interactive dashboard for analyzing DBT2 test suite performance. Use
+          the filters to select data, zoom and pan the main chart for detailed
+          inspection, and use the context view below for broad time-range
+          selection.
+        </p>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="filter-grid">
+          <div class="filter-group">
+            <label for="scale-filter">Test Scale</label>
+            <select id="scale-filter"></select>
+          </div>
+          <div class="filter-group branch-select">
+            <label for="branch-select-button">Development Branches</label>
+            <button id="branch-select-button">Select Branches</button>
+            <div id="branch-filter-dropdown">
+              <div class="branch-filter-actions">
+                <button id="branch-select-all">Select All</button>
+                <button id="branch-deselect-all">Deselect All</button>
+              </div>
+              <div id="branch-list-container"></div>
+            </div>
+          </div>
+          <div class="filter-group">
+            <label for="start-date-filter">Start Date</label>
+            <input type="date" id="start-date-filter" />
+          </div>
+          <div class="filter-group">
+            <label for="end-date-filter">End Date</label>
+            <input type="date" id="end-date-filter" />
+          </div>
+          <div class="filter-group">
+            <label> </label>
+            <div class="button-group">
+              <button id="apply-filters" class="btn-primary">Apply</button>
+              <button id="reset-filters" class="btn-secondary">Reset</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-card chart-wrapper">
+        <div class="chart-container">
+          <canvas id="main-chart"></canvas>
+        </div>
+        <div class="context-chart-container">
+          <canvas id="context-chart"></canvas>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      let fullChartData = [];
+      let mainChart, contextChart;
+      const chartColors = [
+        '#4e79a7',
+        '#f28e2c',
+        '#e15759',
+        '#76b7b2',
+        '#59a14f',
+        '#edc949',
+        '#af7aa1',
+        '#ff9da7',
+        '#9c755f',
+        '#bab0ab',
+      ];
+
+      document.addEventListener('DOMContentLoaded', () => {
+        fetch('./fireweed.csv')
+          .then((response) =>
+            response.ok
+              ? response.text()
+              : Promise.reject(`Failed to load: ${response.statusText}`)
+          )
+          .then((csvText) => {
+            const rawData = parseCSV(csvText);
+            if (!rawData || rawData.length === 0)
+              throw new Error('No valid data in CSV');
+
+            fullChartData = rawData
+              .map((d) => ({
+                branch: d.branch || 'unknown',
+                revision: d.revision,
+                scale: +d.scale,
+                ctime: new Date(d.ctime * 1000),
+                metric: +d.metric,
+                commit_message: d.commit_message || 'N/A',
+              }))
+              .sort((a, b) => a.ctime - b.ctime);
+
+            if (fullChartData.length === 0)
+              throw new Error('No processable data');
+
+            initializeFilters(fullChartData);
+            setupBranchDropdown();
+            applyFilters();
+          })
+          .catch((error) => {
+            console.error('Initialization Error:', error);
+            document.querySelector(
+              '.chart-wrapper'
+            ).innerHTML = `<p style="color: #dc3545; padding: 2rem;"><strong>Error:</strong> ${error.message}</p>`;
+          });
+      });
+
+      // --- DATA & UI MANAGEMENT ---
+      function parseCSV(csvText) {
+        const lines = csvText.trim().split('\n');
+        const headers = lines[0].split(',').map((h) => h.trim());
+        return lines.slice(1).map((line) => {
+          const values =
+            line
+              .match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g)
+              ?.map((v) => v.replace(/^"|"$/g, '').trim()) || [];
+          return headers.reduce((obj, header, i) => {
+            obj[header] = values[i] || '';
+            return obj;
+          }, {});
+        });
+      }
+
+      function initializeFilters(data) {
+        const scales = [...new Set(data.map((d) => d.scale))].sort(
+          (a, b) => a - b
+        );
+        document.querySelector('#scale-filter').innerHTML = scales
+          .map((s) => `<option value="${s}">${s}</option>`)
+          .join('');
+        const defaultScale = scales.includes(100) ? 100 : scales[0];
+        document.querySelector('#scale-filter').value = defaultScale;
+
+        const branches = [...new Set(data.map((d) => d.branch))].sort();
+        document.querySelector('#branch-list-container').innerHTML = branches
+          .map((b) => {
+            const id = `branch-${b.replace(/[\s/]/g, '-')}`;
+            return `<div class="branch-item"><input type="checkbox" id="${id}" value="${b}" checked><label for="${id}">${b}</label></div>`;
+          })
+          .join('');
+      }
+
+      function setupBranchDropdown() {
+        const dropdownBtn = document.getElementById('branch-select-button');
+        const dropdown = document.getElementById('branch-filter-dropdown');
+        document
+          .getElementById('branch-select-all')
+          .addEventListener('click', () =>
+            document
+              .querySelectorAll('#branch-list-container input')
+              .forEach((cb) => (cb.checked = true))
+          );
+        document
+          .getElementById('branch-deselect-all')
+          .addEventListener('click', () =>
+            document
+              .querySelectorAll('#branch-list-container input')
+              .forEach((cb) => (cb.checked = false))
+          );
+
+        dropdownBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          dropdown.style.display =
+            dropdown.style.display === 'block' ? 'none' : 'block';
+        });
+        window.addEventListener('click', (e) => {
+          if (!dropdown.contains(e.target)) dropdown.style.display = 'none';
+        });
+      }
+
+      function applyFilters() {
+        if (mainChart) mainChart.destroy();
+        if (contextChart) contextChart.destroy();
+
+        const selectedScale = +document.querySelector('#scale-filter').value;
+        const selectedBranches = Array.from(
+          document.querySelectorAll('#branch-list-container input:checked'),
+          (n) => n.value
+        );
+
+        let filteredData = fullChartData.filter(
+          (d) =>
+            d.scale === selectedScale && selectedBranches.includes(d.branch)
+        );
+
+        const startDateInput =
+          document.querySelector('#start-date-filter').value;
+        const endDateInput = document.querySelector('#end-date-filter').value;
+        const startDate = startDateInput ? new Date(startDateInput) : null;
+        const endDate = endDateInput ? new Date(endDateInput) : null;
+        const dateRangeIsValid = startDate && endDate && startDate < endDate;
+
+        const chartDataForTransform = filteredData;
+        const { datasets } = transformDataForChartJS(chartDataForTransform);
+
+        if (datasets.length === 0 || chartDataForTransform.length === 0) {
+          document.querySelector('.chart-wrapper').innerHTML =
+            '<div class="chart-container" style="display:flex; align-items:center; justify-content:center;"><p style="color: var(--text-secondary); padding: 4rem;">No data matches the current filter criteria.</p></div><div class="context-chart-container"></div>';
+          return;
+        }
+
+        const initialMin = dateRangeIsValid
+          ? startDate.getTime()
+          : new Date(chartDataForTransform[0].ctime).getTime();
+        const initialMax = dateRangeIsValid
+          ? endDate.getTime()
+          : new Date(
+              chartDataForTransform[chartDataForTransform.length - 1].ctime
+            ).getTime();
+
+        updateDateInputs(initialMin, initialMax);
+
+        mainChart = createMainChart(datasets, initialMin, initialMax);
+        contextChart = createContextChart(datasets);
+        setupBrush(contextChart, mainChart);
+      }
+
+      function resetFilters() {
+        initializeFilters(fullChartData);
+        const dataForRange = fullChartData.filter(
+          (d) => d.scale === +document.querySelector('#scale-filter').value
+        );
+        if (dataForRange.length > 0) {
+          updateDateInputs(
+            Math.min(...dataForRange.map((d) => d.ctime.getTime())),
+            Math.max(...dataForRange.map((d) => d.ctime.getTime()))
+          );
+        }
+        applyFilters();
+      }
+
+      function updateDateInputs(min, max) {
+        const format = (date) => new Date(date).toISOString().split('T')[0];
+        document.querySelector('#start-date-filter').value = format(min);
+        document.querySelector('#end-date-filter').value = format(max);
+      }
+
+      function transformDataForChartJS(data) {
+        const groupedByBranch = data.reduce((acc, d) => {
+          (acc[d.branch] = acc[d.branch] || []).push(d);
+          return acc;
+        }, {});
+
+        const datasets = Object.keys(groupedByBranch).map((branch, i) => ({
+          label: branch,
+          data: groupedByBranch[branch].map((d) => ({
+            x: d.ctime.getTime(),
+            y: d.metric,
+            fullData: d,
+          })),
+          borderColor: chartColors[i % chartColors.length],
+          backgroundColor: chartColors[i % chartColors.length],
+          // REFINEMENT: Smaller points
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          borderWidth: 2,
+          tension: 0.1,
+        }));
+        return { datasets };
+      }
+
+      document
+        .getElementById('apply-filters')
+        .addEventListener('click', applyFilters);
+      document
+        .getElementById('reset-filters')
+        .addEventListener('click', resetFilters);
+
+      // --- CHART CREATION & LOGIC ---
+
+      function createMainChart(datasets, min, max) {
+        const ctx = document.getElementById('main-chart').getContext('2d');
+        return new Chart(ctx, {
+          type: 'line',
+          data: { datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { type: 'time', min, max, time: { unit: 'day' } },
+              y: { beginAtZero: false, grace: '5%' },
+            },
+            plugins: {
+              zoom: {
+                pan: {
+                  enabled: true,
+                  // REFINEMENT: Pan in any direction
+                  mode: 'xy',
+                },
+                zoom: {
+                  wheel: { enabled: true },
+                  pinch: { enabled: true },
+                  mode: 'xy',
+                  // REFINEMENT: Remove zoom limits
+                  limits: {
+                    x: { min: 'original', max: 'original' },
+                    y: { min: 'original', max: 'original' },
+                  },
+                },
+                onZoomComplete: ({ chart }) => {
+                  updateDateInputs(chart.scales.x.min, chart.scales.x.max);
+                },
+                onPanComplete: ({ chart }) => {
+                  updateDateInputs(chart.scales.x.min, chart.scales.x.max);
+                },
+              },
+              legend: { position: 'top' },
+              tooltip: {
+                enabled: true,
+                mode: 'index',
+                intersect: false,
+                callbacks: {
+                  title: (context) =>
+                    new Date(context[0].parsed.x).toDateString(),
+                  label: (context) => {
+                    const d = context.raw.fullData;
+                    return `${d.branch}: ${d.metric.toFixed(2)}`;
+                  },
+                  afterBody: (context) => {
+                    const d = context[0].raw.fullData;
+                    return `\nRevision: ${d.revision.substring(
+                      0,
+                      10
+                    )}\n(Click to view on GitHub)`;
+                  },
+                },
+                events: ['mousemove', 'mouseout', 'click'],
+                onClick: (event, elements) => {
+                  if (elements.length > 0) {
+                    const d = elements[0].element.$context.raw.fullData;
+                    window.open(
+                      `https://github.com/fireweed-home/db2/commit/${d.revision}`,
+                      '_blank'
+                    );
+                  }
+                },
+              },
+            },
+            interaction: { mode: 'index', intersect: false },
+          },
+        });
+      }
+
+      function createContextChart(datasets) {
+        const ctx = document.getElementById('context-chart').getContext('2d');
+        return new Chart(ctx, {
+          type: 'line',
+          data: { datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                type: 'time',
+                time: { unit: 'month' },
+                ticks: {
+                  autoSkip: true,
+                  maxRotation: 0,
+                  major: { enabled: true },
+                },
+              },
+              y: { display: false },
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: { enabled: false },
+              zoom: { zoom: { enabled: false }, pan: { enabled: false } },
+            },
+            // REFINEMENT: No dots and thinner lines for context chart
+            elements: {
+              point: { radius: 0 },
+              line: { borderWidth: 1 },
+            },
+          },
+        });
+      }
+
+      // --- BRUSH IMPLEMENTATION ---
+      function setupBrush(context, main) {
+        const canvas = context.canvas;
+        let brushRect = {};
+        let isBrushing = false;
+
+        const drawBrushRect = () => {
+          context.update('none'); // Redraw chart without animation
+          if (!isBrushing || !brushRect.startX || !brushRect.endX) return;
+          const { ctx } = context;
+          ctx.save();
+          ctx.fillStyle = 'rgba(13, 110, 253, 0.2)';
+          ctx.strokeStyle = 'rgba(13, 110, 253, 0.5)';
+          ctx.lineWidth = 1;
+          const rectX = Math.min(brushRect.startX, brushRect.endX);
+          const rectWidth = Math.abs(brushRect.endX - brushRect.startX);
+          ctx.fillRect(rectX, 0, rectWidth, canvas.height);
+          ctx.strokeRect(rectX, 0, rectWidth, canvas.height);
+          ctx.restore();
+        };
+
+        canvas.addEventListener('mousedown', (e) => {
+          isBrushing = true;
+          brushRect = { startX: e.offsetX, endX: e.offsetX };
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+          if (isBrushing) {
+            brushRect.endX = e.offsetX;
+            drawBrushRect();
+          }
+        });
+
+        const mouseupOrLeave = (e) => {
+          if (!isBrushing) return;
+          isBrushing = false;
+
+          const startPixel = Math.min(brushRect.startX, brushRect.endX);
+          const endPixel = Math.max(brushRect.startX, brushRect.endX);
+
+          // Clear visual brush rect immediately
+          context.update('none');
+
+          if (endPixel - startPixel < 5) return; // Ignore tiny accidental drags
+
+          const newMin = context.scales.x.getValueForPixel(startPixel);
+          const newMax = context.scales.x.getValueForPixel(endPixel);
+
+          // Update main chart via zoom function
+          main.zoomScale('x', { min: newMin, max: newMax });
+          updateDateInputs(newMin, newMax);
+        };
+
+        canvas.addEventListener('mouseup', mouseupOrLeave);
+        canvas.addEventListener('mouseleave', mouseupOrLeave);
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TERMINAL :: DBT2 FIREWEED PERFORMANCE</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=VT323&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ================================== */
+      /* ===== RETRO CRT THEME STYLES ===== */
+      /* ================================== */
+
+      :root {
+        --crt-bg: #1a241a;
+        --crt-text: #00ff41;
+        --crt-text-dim: #008f25;
+        --crt-accent: #ffb400;
+        --crt-scanline-alpha: 0.15;
+      }
+
+      body {
+        background-color: var(--crt-bg);
+        color: var(--crt-text);
+        font-family: 'VT323', monospace;
+        font-size: 18px;
+        text-shadow: 0 0 5px var(--crt-text), 0 0 10px var(--crt-text);
+        overflow-x: hidden;
+      }
+
+      /* CRT Scanline Effect */
+      body::after {
+        content: ' ';
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+        background: repeating-linear-gradient(
+          0deg,
+          rgba(0, 0, 0, 0) 0px,
+          rgba(0, 0, 0, var(--crt-scanline-alpha)) 1px,
+          rgba(0, 0, 0, 0) 2px
+        );
+        pointer-events: none;
+        z-index: 9999;
+      }
+
+      main {
+        max-width: 1100px;
+        margin: 2rem auto;
+        padding: 1.5rem 2rem;
+        border: 2px solid var(--crt-text-dim);
+        box-shadow: inset 0 0 15px var(--crt-text-dim),
+          0 0 20px var(--crt-text-dim);
+        background: rgba(16, 46, 23, 0.1);
+      }
+
+      h1 {
+        font-size: 2.5rem;
+        text-align: center;
+        margin-bottom: 1rem;
+        color: var(--crt-accent);
+        text-shadow: 0 0 8px var(--crt-accent);
+        text-transform: uppercase;
+      }
+
+      .description {
+        white-space: pre-wrap;
+        margin-bottom: 2rem;
+        line-height: 1.5;
+        color: var(--crt-text);
+        border: 1px solid var(--crt-text-dim);
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.2);
+      }
+
+      /* --- Filter Console Styles --- */
+      .filter-console {
+        padding: 1rem;
+        margin-bottom: 2rem;
+        border: 1px solid var(--crt-text-dim);
+      }
+      .filter-console fieldset {
+        border: 1px solid var(--crt-text-dim);
+        padding: 1.5rem;
+      }
+      .filter-console legend {
+        padding: 0 0.5rem;
+        color: var(--crt-accent);
+        font-size: 1.2rem;
+      }
+      .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        align-items: end;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      select,
+      button {
+        width: 100%;
+        background: transparent;
+        border: 1px solid var(--crt-text);
+        color: var(--crt-text);
+        font-family: 'VT323', monospace;
+        font-size: 1rem;
+        padding: 0.5rem;
+        outline: none;
+        cursor: pointer;
+      }
+
+      select:focus,
+      button:focus {
+        background: var(--crt-text);
+        color: var(--crt-bg);
+        text-shadow: none;
+      }
+      button:hover {
+        background: var(--crt-text);
+        color: var(--crt-bg);
+        text-shadow: none;
+      }
+      select option {
+        background: var(--crt-bg);
+        color: var(--crt-text);
+      }
+
+      #branch-filter-container {
+        border: 1px solid var(--crt-text);
+        padding: 0.5rem;
+        height: 120px;
+        overflow-y: auto;
+        background: rgba(0, 0, 0, 0.2);
+      }
+      .branch-item {
+        display: flex;
+        align-items: center;
+      }
+      .branch-item label {
+        margin-left: 0.5rem;
+        cursor: pointer;
+      }
+      input[type='checkbox'] {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        border: 1px solid var(--crt-text);
+        cursor: pointer;
+        position: relative;
+      }
+      input[type='checkbox']:checked::before {
+        content: '■';
+        position: absolute;
+        top: -6px;
+        left: 1px;
+        font-size: 1.2rem;
+        color: var(--crt-text);
+      }
+
+      /* --- D3 Chart Styles --- */
+      .axis path,
+      .axis line {
+        stroke: var(--crt-text-dim);
+      }
+      .axis text {
+        fill: var(--crt-text);
+        font-size: 16px;
+        font-family: 'VT323', monospace;
+      }
+      .grid path {
+        display: none;
+      }
+      .grid line {
+        stroke: var(--crt-text-dim);
+        stroke-opacity: 0.4;
+        stroke-dasharray: 2, 3;
+      }
+      .brush .selection {
+        fill: var(--crt-text);
+        fill-opacity: 0.25;
+        stroke: var(--crt-text);
+      }
+
+      /* --- Tooltip Styles --- */
+      .tooltip {
+        position: absolute;
+        opacity: 0;
+        background-color: var(--crt-bg);
+        color: var(--crt-text);
+        padding: 15px;
+        border: 1px solid var(--crt-text);
+        font-family: 'VT323', monospace;
+        font-size: 1rem;
+        line-height: 1.6;
+        white-space: nowrap;
+        transition: opacity 0.2s ease-in-out;
+        z-index: 1000;
+        min-width: 300px;
+        pointer-events: none;
+        box-shadow: 0 0 10px var(--crt-text);
+      }
+      .tooltip a {
+        color: var(--crt-accent);
+        pointer-events: auto;
+      }
+      .tooltip .tooltip-date {
+        color: var(--crt-accent);
+        border-bottom: 1px solid var(--crt-text-dim);
+        margin-bottom: 10px;
+        padding-bottom: 5px;
+      }
+      .tooltip .version-color {
+        width: 12px;
+        height: 12px;
+        margin-right: 8px;
+        display: inline-block;
+        flex-shrink: 0;
+        border: 1px solid var(--crt-text);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>DBT2 Performance Monitor</h1>
+
+      <p class="description">
+        > [ACCESSING ARCHIVED DATASTREAM: FW_DBT2_PERF.LOG] > VISUALIZATION
+        PROTOCOL ENGAGED... This terminal displays historical performance
+        metrics for the Fireweed DBT2 test suite. Each point on the grid
+        represents a specific test run, plotted by time and performance metric.
+        Use the console below to filter the datastream by scale factor and
+        active development branches. The lower-level chronoscope can be used to
+        isolate and magnify specific time periods. [END OF MOTD]
+      </p>
+
+      <!-- START: NEW HTML FOR FILTERS -->
+      <div class="filter-console">
+        <fieldset>
+          <legend>:: FILTER CONSOLE ::</legend>
+          <div class="filter-grid">
+            <!-- Scale Filter -->
+            <div>
+              <label for="scale-filter">> SELECT SCALE_FACTOR</label>
+              <select id="scale-filter"></select>
+            </div>
+
+            <!-- Branch Filter -->
+            <div>
+              <label for="branch-filter-container">> SELECT BRANCHES</label>
+              <div id="branch-filter-container"></div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center space-x-2">
+              <button id="apply-filters">> EXECUTE_QUERY</button>
+              <button id="reset-filters">> RESET_STREAM</button>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+      <!-- END: NEW HTML FOR FILTERS -->
+
+      <svg width="100%" height="700"></svg>
+      <div class="tooltip"></div>
+    </main>
+
+    <script>
+      // --- NEW GLOBAL VARIABLES ---
+      let fullChartData = [];
+      let currentChartData = [];
+
+      document.addEventListener('DOMContentLoaded', () => {
+        fetch('./fireweed.csv')
+          .then((response) => {
+            if (!response.ok)
+              throw new Error(
+                `NETWORK ERROR :: ${response.status} ${response.statusText}`
+              );
+            return response.text();
+          })
+          .then((csvText) => {
+            const rawData = parseCSV(csvText);
+
+            if (!rawData || !Array.isArray(rawData) || rawData.length === 0) {
+              throw new Error('CORRUPT DATA :: No valid data found in CSV');
+            }
+
+            fullChartData = rawData
+              .map((d) => ({
+                branch: d.branch || 'unknown',
+                revision: d.revision,
+                scale: +d.scale,
+                ctime: new Date(d.ctime * 1000),
+                metric: +d.metric,
+                commit_message: d.commit_message || 'N/A',
+              }))
+              .sort((a, b) => a.ctime - b.ctime);
+
+            if (fullChartData.length === 0) {
+              throw new Error(
+                'EMPTY DATASTREAM :: CSV contains no processable data.'
+              );
+            }
+
+            initializeFilters(fullChartData);
+            renderInitialChart();
+          })
+          .catch((error) => {
+            console.error('CRITICAL ERROR:', error);
+            const svg = d3.select('svg');
+            svg
+              .append('text')
+              .attr('x', '50%')
+              .attr('y', 50)
+              .attr('text-anchor', 'middle')
+              .attr('fill', '#ff4136')
+              .text(`// ERROR: ${error.message}`);
+          });
+      });
+
+      // ===================================================================
+      // ORIGINAL UNCHANGED FUNCTIONS
+      // ===================================================================
+
+      function parseCSV(csvText) {
+        const lines = csvText.trim().split('\n');
+        const headers = lines[0].split(',').map((h) => h.trim());
+        return lines.slice(1).map((line) => {
+          const values = line
+            .match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g)
+            .map((v) => v.replace(/^"|"$/g, '').trim());
+          const entry = {};
+          headers.forEach((header, i) => {
+            entry[header] = values[i] || '';
+          });
+          return entry;
+        });
+      }
+
+      function initializeApp(fireweedData) {
+        const svg = d3.select('svg');
+        const width = svg.node().getBoundingClientRect().width;
+        const height = +svg.attr('height');
+
+        const margin = { top: 20, right: 30, bottom: 120, left: 60 };
+        const chartHeight = height - margin.top - margin.bottom;
+        const chartWidth = width - margin.left - margin.right;
+
+        const xScale = d3
+          .scaleTime()
+          .domain(d3.extent(fireweedData, (d) => d.ctime))
+          .range([0, chartWidth]);
+
+        const yScale = d3
+          .scaleLinear()
+          .domain([
+            d3.min(fireweedData, (d) => d.metric) * 0.95,
+            d3.max(fireweedData, (d) => d.metric) * 1.05,
+          ])
+          .range([chartHeight, 0]);
+
+        const branches = Array.from(new Set(fireweedData.map((d) => d.branch)));
+        const colorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(branches);
+
+        svg
+          .append('defs')
+          .append('clipPath')
+          .attr('id', 'chart-clip')
+          .append('rect')
+          .attr('width', chartWidth)
+          .attr('height', chartHeight);
+
+        const chart = svg
+          .append('g')
+          .attr('transform', `translate(${margin.left}, ${margin.top})`);
+
+        const xAxis = d3
+          .axisBottom(xScale)
+          .ticks(6)
+          .tickFormat(d3.timeFormat('%b %d'));
+        const yAxis = d3.axisLeft(yScale).ticks(6);
+        const xGrid = d3
+          .axisBottom(xScale)
+          .tickSize(-chartHeight)
+          .tickFormat('');
+        const yGrid = d3.axisLeft(yScale).tickSize(-chartWidth).tickFormat('');
+
+        chart
+          .append('g')
+          .attr('class', 'grid x-grid')
+          .attr('transform', `translate(0, ${chartHeight})`)
+          .call(xGrid);
+        chart.append('g').attr('class', 'grid y-grid').call(yGrid);
+
+        const xAxisGroup = chart
+          .append('g')
+          .attr('class', 'axis')
+          .attr('transform', `translate(0, ${chartHeight})`)
+          .call(xAxis);
+        const yAxisGroup = chart.append('g').attr('class', 'axis').call(yAxis);
+
+        const clipArea = chart
+          .append('g')
+          .attr('clip-path', 'url(#chart-clip)');
+
+        const line = d3
+          .line()
+          .x((d) => xScale(d.ctime))
+          .y((d) => yScale(d.metric));
+
+        const groupedData = d3.group(fireweedData, (d) => d.branch);
+        const branchLines = clipArea
+          .append('g')
+          .selectAll('.line')
+          .data(groupedData)
+          .join('path')
+          .attr('class', 'line')
+          .attr('fill', 'none')
+          .attr('stroke', ([branch]) => colorScale(branch))
+          .attr('stroke-width', 2.5)
+          .attr('d', ([, data]) => line(data));
+
+        const branchCircles = clipArea
+          .append('g')
+          .selectAll('circle')
+          .data(fireweedData)
+          .join('circle')
+          .attr('cx', (d) => xScale(d.ctime))
+          .attr('cy', (d) => yScale(d.metric))
+          .attr('r', 5)
+          .attr('fill', (d) => colorScale(d.branch))
+          .attr('stroke', 'var(--crt-bg)')
+          .attr('stroke-width', 2);
+
+        const contextHeight = 60;
+        const contextTop = chartHeight + 60;
+
+        const contextGroup = svg
+          .append('g')
+          .attr('transform', `translate(${margin.left}, ${contextTop})`);
+
+        const xScale2 = d3
+          .scaleTime()
+          .domain(xScale.domain())
+          .range([0, chartWidth]);
+        const yScale2 = d3
+          .scaleLinear()
+          .domain(yScale.domain())
+          .range([contextHeight, 0]);
+
+        const contextLine = d3
+          .line()
+          .x((d) => xScale2(d.ctime))
+          .y((d) => yScale2(d.metric));
+
+        contextGroup
+          .selectAll('.context-line')
+          .data(groupedData)
+          .join('path')
+          .attr('class', 'context-line')
+          .attr('fill', 'none')
+          .attr('stroke', ([branch]) => colorScale(branch))
+          .attr('stroke-opacity', 0.7)
+          .attr('stroke-width', 1.5)
+          .attr('d', ([, data]) => contextLine(data));
+
+        contextGroup
+          .append('g')
+          .attr('transform', `translate(0, ${contextHeight})`)
+          .call(
+            d3.axisBottom(xScale2).ticks(6).tickFormat(d3.timeFormat('%Y'))
+          );
+
+        const brush = d3
+          .brushX()
+          .extent([
+            [0, 0],
+            [chartWidth, contextHeight],
+          ])
+          .on('end', brushed);
+
+        contextGroup.append('g').attr('class', 'brush').call(brush);
+
+        const tooltip = d3.select('.tooltip');
+        const svgRect = svg.node().getBoundingClientRect();
+
+        branchCircles
+          .on('mouseover', function (event, d) {
+            const [svgX, svgY] = d3.pointer(event, svg.node());
+
+            tooltip
+              .style('left', `${svgX + 20}px`)
+              .style('top', `${svgY}px`).html(`
+              <div class="tooltip-date">${d3.timeFormat('%a, %d %b %Y')(
+                d.ctime
+              )}</div>
+              <div class="version-item">
+                <span class="version-color" style="background-color: ${colorScale(
+                  d.branch
+                )}"></span>
+                <span class="version-name">${d.branch}</span>
+                <span class="version-value">${d.metric.toFixed(2)}</span>
+              </div>
+              <div class="commit-details" style="margin-top:10px; border-top:1px solid var(--crt-text-dim); padding-top:10px;">
+                <strong>Rev:</strong> ${d.revision.substring(0, 10)}...<br>
+                <a href="https://github.com/fireweed-home/db2/commit/${
+                  d.revision
+                }" target="_blank" rel="noopener noreferrer">> View Commit</a>
+              </div>
+            `);
+
+            tooltip.style('opacity', 1);
+            d3.select(this).attr('r', 7).attr('stroke-width', 3);
+          })
+          .on('mouseout', function () {
+            tooltip.style('opacity', 0);
+            d3.select(this).attr('r', 5).attr('stroke-width', 2);
+          });
+
+        function brushed(event) {
+          if (!event.selection) return;
+
+          const [x0, x1] = event.selection.map(xScale2.invert);
+          xScale.domain([x0, x1]);
+
+          const filtered = fireweedData.filter(
+            (d) => d.ctime >= x0 && d.ctime <= x1
+          );
+          const yMin =
+            filtered.length > 0 ? d3.min(filtered, (d) => d.metric) * 0.95 : 0;
+          const yMax =
+            filtered.length > 0
+              ? d3.max(filtered, (d) => d.metric) * 1.05
+              : yScale.domain()[1];
+          yScale.domain([yMin, yMax]);
+
+          // Use a smoother transition
+          const t = svg.transition().duration(400).ease(d3.easeCubicInOut);
+
+          xAxisGroup.transition(t).call(xAxis);
+          yAxisGroup.transition(t).call(yAxis);
+          chart.select('.x-grid').transition(t).call(xGrid.scale(xScale));
+          chart.select('.y-grid').transition(t).call(yGrid.scale(yScale));
+
+          branchLines.transition(t).attr('d', ([, data]) => line(data));
+
+          branchCircles
+            .transition(t)
+            .attr('cx', (d) => xScale(d.ctime))
+            .attr('cy', (d) => yScale(d.metric))
+            .attr('opacity', (d) => (d.ctime >= x0 && d.ctime <= x1 ? 1 : 0));
+        }
+      }
+
+      // ===================================================================
+      // NEW JAVASCRIPT FOR FILTERS AND RESPONSIVENESS
+      // ===================================================================
+
+      function initializeFilters(data) {
+        const scales = [...new Set(data.map((d) => d.scale))].sort(
+          (a, b) => a - b
+        );
+        const scaleSelect = d3.select('#scale-filter');
+        scaleSelect
+          .selectAll('option')
+          .data(scales)
+          .join('option')
+          .attr('value', (d) => d)
+          .text((d) => d);
+
+        const defaultScale = scales.includes(100) ? 100 : scales[0];
+        scaleSelect.property('value', defaultScale);
+
+        const branches = [...new Set(data.map((d) => d.branch))].sort();
+        const branchContainer = d3.select('#branch-filter-container');
+
+        branchContainer.html(''); // Clear previous checkboxes
+
+        const branchItems = branchContainer
+          .selectAll('.branch-item')
+          .data(branches)
+          .join('div')
+          .attr('class', 'branch-item');
+
+        branchItems
+          .append('input')
+          .attr('id', (d) => `branch-${d.replace(/[\s/]/g, '-')}`)
+          .attr('type', 'checkbox')
+          .attr('value', (d) => d)
+          .property('checked', true);
+
+        branchItems
+          .append('label')
+          .attr('for', (d) => `branch-${d.replace(/[\s/]/g, '-')}`)
+          .text((d) => d);
+      }
+
+      function renderInitialChart() {
+        const defaultScale = 100;
+        const initialData = fullChartData.filter(
+          (d) => d.scale === defaultScale
+        );
+
+        if (initialData.length === 0) {
+          console.warn('No data for default scale (100). Chart may be empty.');
+        }
+
+        currentChartData = initialData;
+        initializeApp(currentChartData);
+      }
+
+      function applyFilters() {
+        const selectedScale = +d3.select('#scale-filter').property('value');
+        const selectedBranches = [];
+        d3.selectAll(
+          '#branch-filter-container input[type="checkbox"]:checked'
+        ).each(function () {
+          selectedBranches.push(this.value);
+        });
+
+        const filteredData = fullChartData.filter(
+          (d) =>
+            d.scale === selectedScale && selectedBranches.includes(d.branch)
+        );
+
+        d3.select('svg').html('');
+
+        if (filteredData.length === 0) {
+          d3.select('h1').text(`NO DATA FOR SELECTION`);
+          const svg = d3.select('svg');
+          svg
+            .append('text')
+            .attr('x', '50%')
+            .attr('y', 50)
+            .attr('text-anchor', 'middle')
+            .text('// No data for selected filters. Try a new query.');
+          currentChartData = [];
+          return;
+        }
+
+        d3.select('h1').text(`DBT2 Performance Monitor`);
+
+        currentChartData = filteredData;
+        initializeApp(currentChartData);
+      }
+
+      function resetFilters() {
+        d3.select('svg').html('');
+        initializeFilters(fullChartData);
+        renderInitialChart();
+      }
+
+      d3.select('#apply-filters').on('click', applyFilters);
+      d3.select('#reset-filters').on('click', resetFilters);
+
+      function handleResize() {
+        if (currentChartData && currentChartData.length > 0) {
+          d3.select('svg').html('');
+          initializeApp(currentChartData);
+        }
+      }
+
+      let resizeTimer;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(handleResize, 250);
+      });
+    </script>
+  </body>
+</html>

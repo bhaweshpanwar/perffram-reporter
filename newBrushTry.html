@@ -122,19 +122,9 @@
       <h1 class="text-3xl font-bold text-gray-800 mb-2">
         DBT2 Test Results Fireweed (Scale: 100)
       </h1>
-      <!-- 
-      <div class="p-6 bg-gray-100 rounded-lg shadow-inner relative">
-        <p class="text-gray-600 mt-2 mb-4">
-          This interactive chart visualizes DB2 performance metrics over time.
-          <strong>Use the brush</strong> in the context area below to select a
-          time range and zoom in on the main chart.
-          <strong>Hover over any data point</strong> to view detailed
-          information about that specific test run, including its metric,
-          branch, and commit revision.
-        </p> -->
-        <svg width="100%" height="700" class="bg-white rounded"></svg>
-        <div class="tooltip"></div>
-      </div>
+
+      <svg width="100%" height="700" class="bg-white rounded"></svg>
+      <div class="tooltip"></div>
     </main>
     <script>
       document.addEventListener('DOMContentLoaded', () => {
@@ -217,18 +207,18 @@
           .domain(d3.extent(fireweedData, (d) => d.ctime))
           .range([0, chartWidth]);
 
-        // const yScale = d3
-        //   .scaleLinear()
-        //   .domain([0, d3.max(fireweedData, (d) => d.metric) * 1.05]) // 5% padding
-        //   .range([chartHeight, 0]);
-
         const yScale = d3
           .scaleLinear()
-          .domain([
-            d3.min(fireweedData, (d) => d.metric) * 0.95, // 5% below min
-            d3.max(fireweedData, (d) => d.metric) * 1.05, // 5% above max
-          ])
+          .domain([0, d3.max(fireweedData, (d) => d.metric) * 1.05]) // 5% padding
           .range([chartHeight, 0]);
+
+        // const yScale = d3
+        //   .scaleLinear()
+        //   .domain([
+        //     d3.min(fireweedData, (d) => d.metric) * 0.95, // 5% below min
+        //     d3.max(fireweedData, (d) => d.metric) * 1.05, // 5% above max
+        //   ])
+        //   .range([chartHeight, 0]);
 
         // === COLOR SCALE FOR BRANCHES ===
         const branches = Array.from(new Set(fireweedData.map((d) => d.branch)));
@@ -275,6 +265,32 @@
           .call(xAxis);
         const yAxisGroup = chart.append('g').attr('class', 'axis').call(yAxis);
 
+        // === ZOOM CONTAINER ===
+
+        const zoom = d3
+          .zoom()
+          .scaleExtent([1, 100])
+          .translateExtent([
+            [0, 0],
+            [chartWidth, chartHeight],
+          ])
+          .extent([
+            [0, 0],
+            [chartWidth, chartHeight],
+          ])
+          .on('zoom', zoomed);
+
+        const zoomContainer = chart
+          .append('rect')
+          .attr('width', chartWidth)
+          .attr('height', chartHeight)
+          .style('fill', 'none')
+          .style('pointer-events', 'all')
+          .attr('transform', `translate(0,0)`)
+          .lower(); // send behind other elements
+
+        svg.call(zoom);
+
         // === NEW: CONTAINER FOR CLIPPED CONTENT ===
         // We apply the clipPath to this group. Anything appended to `clipArea` will be clipped.
         const clipArea = chart
@@ -297,7 +313,7 @@
           .attr('class', 'line')
           .attr('fill', 'none')
           .attr('stroke', ([branch]) => colorScale(branch))
-          .attr('stroke-width', 2)
+          .attr('stroke-width', 1)
           .attr('d', ([, data]) => line(data));
 
         // === ADD CIRCLES PER BRANCH ===
@@ -308,10 +324,8 @@
           .join('circle')
           .attr('cx', (d) => xScale(d.ctime))
           .attr('cy', (d) => yScale(d.metric))
-          .attr('r', 4)
-          .attr('fill', (d) => colorScale(d.branch))
-          .attr('stroke', 'white')
-          .attr('stroke-width', 1);
+          .attr('r', 2)
+          .attr('fill', (d) => colorScale(d.branch));
 
         // === CONTEXT/BRUSH VIEW === (This remains outside the clip area)
         const contextHeight = 60;
@@ -371,51 +385,59 @@
 
         const svgRect = svg.node().getBoundingClientRect();
 
-        // Add mouse events to the circles
+        let tooltipTimeout;
+
         branchCircles
           .on('mouseover', function (event, d) {
-            const cx = xScale(d.ctime);
-            const cy = yScale(d.metric);
+            clearTimeout(tooltipTimeout); // cancel pending hide
 
-            const tooltipX = svgRect.left + margin.left + cx + 15;
-            const tooltipY = svgRect.top + margin.top + cy - 15;
+            const [x, y] = d3.pointer(event, svg.node());
 
-            // Update tooltip position and content
             tooltip
-              .style('left', `${tooltipX}px`)
-              .style('top', `${tooltipY}px`)
-              .style('transform', 'translateY(-100%)').html(`
-              <div class="tooltip-date">${d3.timeFormat('%A, %B %d, %Y')(
-                d.ctime
-              )}</div>
-              <div class="version-item">
-                <span class="version-color" style="background-color: ${colorScale(
-                  d.branch
-                )}"></span>
-                <span class="version-name">${d.branch}</span>
-                <span class="version-value">${d.metric.toFixed(2)}</span>
-              </div>
-              <div class="commit-details">
-                <strong>Revision:</strong> ${d.revision.substring(0, 10)}...<br>
-                <a href="https://github.com/fireweed-home/db2/commit/${
-                  d.revision
-                }" target="_blank">View on GitHub</a>
-              </div>
-            `);
-
-            // Show tooltip
-            tooltip.style('opacity', 1);
-
-            // Highlight the hovered circle slightly
-            d3.select(this).attr('r', 6).attr('stroke-width', 2);
+              .style('left', `${x + margin.left + 15}px`)
+              .style('top', `${y + margin.top - 30}px`)
+              .style('display', 'block')
+              .style('opacity', 1)
+              .style('pointer-events', 'auto').html(`
+        <div class="tooltip-date">${d3.timeFormat('%A, %B %d, %Y')(
+          d.ctime
+        )}</div>
+        <div class="version-item">
+          <span class="version-color" style="background-color: ${colorScale(
+            d.branch
+          )}"></span>
+          <span class="version-name">${d.branch}</span>
+          <span class="version-value">${d.metric.toFixed(2)}</span>
+        </div>
+        <div class="commit-details">
+          <strong>Revision:</strong> ${d.revision.substring(0, 10)}...<br>
+          <a href="https://github.com/postgres/postgres/commit/${
+            d.revision
+          }" target="_blank">View on GitHub</a>
+        </div>
+      `);
           })
-          .on('mouseout', function () {
-            // Hide tooltip
-            tooltip.style('opacity', 0);
-
-            // Reset circle appearance
-            d3.select(this).attr('r', 4).attr('stroke-width', 1);
+          .on('mouseout', () => {
+            tooltipTimeout = setTimeout(() => {
+              tooltip
+                .style('opacity', 0)
+                .style('pointer-events', 'none')
+                .style('display', 'none');
+            }, 250); // 250ms delay
           });
+
+        tooltip.on('mouseover', () => {
+          clearTimeout(tooltipTimeout); // prevent hiding when hovering tooltip
+        });
+
+        tooltip.on('mouseout', () => {
+          tooltipTimeout = setTimeout(() => {
+            tooltip
+              .style('opacity', 0)
+              .style('pointer-events', 'none')
+              .style('display', 'none');
+          }, 250);
+        });
 
         // Remove the entire focus group and its related code
         // Also remove the duplicate updateTooltip function
@@ -438,7 +460,7 @@
               : yScale.domain()[1];
           yScale.domain([yMin, yMax]); // Updated domain with padding
 
-          const t = svg.transition().duration(400);
+          const t = svg.transition().duration(400).ease(d3.easeLinear);
 
           xAxisGroup.transition(t).call(xAxis);
           yAxisGroup.transition(t).call(yAxis);
@@ -453,6 +475,35 @@
             .attr('cx', (d) => xScale(d.ctime))
             .attr('cy', (d) => yScale(d.metric))
             .attr('opacity', (d) => (d.ctime >= x0 && d.ctime <= x1 ? 1 : 0));
+        }
+
+        function zoomed(event) {
+          const transform = event.transform;
+
+          // Rescale axes
+          const newX = transform.rescaleX(xScale);
+          const newY = transform.rescaleY(yScale);
+
+          // Update axis
+          xAxisGroup.call(xAxis.scale(newX));
+          yAxisGroup.call(yAxis.scale(newY));
+
+          // Update grid
+          chart.select('.x-grid').call(xGrid.scale(newX));
+          chart.select('.y-grid').call(yGrid.scale(newY));
+
+          // Update paths
+          branchLines.attr('d', ([, data]) =>
+            d3
+              .line()
+              .x((d) => newX(d.ctime))
+              .y((d) => newY(d.metric))(data)
+          );
+
+          // Update circles
+          branchCircles
+            .attr('cx', (d) => newX(d.ctime))
+            .attr('cy', (d) => newY(d.metric));
         }
       }
     </script>
