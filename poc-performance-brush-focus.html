@@ -16,8 +16,6 @@
       body {
         font-family: 'Inter', sans-serif;
       }
-
-      /* --- D3 Chart Styles --- */
       .axis path,
       .axis line {
         stroke: #333;
@@ -33,10 +31,14 @@
       .grid line {
         stroke: #e2e8f0;
       }
+      /* --- Interaction Styles --- */
       .brush .selection {
         fill: #3b82f6;
         fill-opacity: 0.2;
         stroke: #2563eb;
+      }
+      #chart-svg {
+        cursor: crosshair;
       }
       .tooltip {
         position: absolute;
@@ -55,6 +57,7 @@
         min-width: 300px;
         pointer-events: none;
       }
+
       .tooltip .tooltip-date {
         font-size: 12px;
         color: #718096;
@@ -106,7 +109,6 @@
       .tooltip a:hover {
         text-decoration: underline;
       }
-
       /* --- Custom Filter Styles --- */
       .form-label {
         display: block;
@@ -115,7 +117,6 @@
         color: #1f2937;
         margin-bottom: 8px;
       }
-
       .form-select,
       #branch-select-button {
         appearance: none;
@@ -123,7 +124,7 @@
         -moz-appearance: none;
         padding: 10px 40px 10px 12px;
         font-size: 14px;
-        color: #9ca3af;
+        color: #374151;
         border: 1px solid #e5e7eb;
         border-radius: 6px;
         background-color: white;
@@ -131,7 +132,7 @@
         background-repeat: no-repeat;
         background-position: right 12px center;
         background-size: 1.25rem;
-        width: 70%;
+        width: 100%;
         cursor: pointer;
         outline: none;
         height: 40px;
@@ -141,8 +142,6 @@
       #branch-select-button:focus {
         border-color: #acafb4;
       }
-
-      /* Checkbox Dropdown */
       #branch-filter-dropdown {
         display: none;
         position: absolute;
@@ -164,7 +163,7 @@
       }
       .branch-filter-actions button {
         font-size: 0.75rem;
-        color: #336790;
+        color: #3b82f6;
         font-weight: 500;
         background: none;
         border: none;
@@ -181,12 +180,11 @@
         align-items: center;
         gap: 0.5rem;
         font-weight: 400;
-        font-size: 0.775rem;
+        font-size: 0.875rem;
         margin-bottom: 0.5rem;
         cursor: pointer;
-        color: #333;
+        color: #374151;
       }
-
       /* --- Legend Styles --- */
       .legend-container {
         display: flex;
@@ -214,7 +212,7 @@
       }
     </style>
   </head>
-  <body class="p-4">
+  <body class="p-4 bg">
     <main>
       <header class="flex justify-between items-start mb-6 pb-4">
         <div>
@@ -237,8 +235,8 @@
         class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 mt-10 max-w-[50%]"
       >
         <div class="filter-group">
-          <label for="chooseScale" class="form-label font-light text-[12px]"
-            >Scale</label
+          <label for="chooseScale" class="form-label font-light text-[14px]"
+            >Scale Factor</label
           >
           <select
             id="chooseScale"
@@ -250,7 +248,7 @@
         <div class="filter-group relative">
           <label
             for="branch-select-button"
-            class="form-label font-light text-[12px]"
+            class="form-label font-light text-[14px]"
             >Choose Branches</label
           >
           <button id="branch-select-button">Select Branches</button>
@@ -264,69 +262,51 @@
         </div>
       </section>
 
-      <svg id="chart-svg" width="100%" height="700"></svg>
+      <svg id="chart-svg" width="100%" height="400"></svg>
       <div id="legend-container" class="legend-container"></div>
 
-      <div class="text-xs text-gray-500 mt-4 space-y-1">
-        <p>
-          <span class="inline-block mr-1 align-middle"
-            ><svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              class="w-4 h-4"
+      <!-- Instructions moved to the bottom -->
+      <footer class="mt-8 pt-4 border-t border-gray-200">
+        <div class="text-xs text-gray-600 space-y-2">
+          <p>
+            <strong class="font-semibold text-gray-700">Zoom:</strong>
+            Click and drag on the chart to select an area to zoom in.
+          </p>
+          <p>
+            <strong class="font-semibold text-gray-700">Pan:</strong>
+            When your mouse is over the chart, use the
+            <kbd
+              class="px-1.5 py-0.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded"
+              >Arrow Keys</kbd
             >
-              <path
-                fill-rule="evenodd"
-                d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z"
-                clip-rule="evenodd"
-              /></svg
-          ></span>
-          Click on any data point to view detailed commit information.
-        </p>
-        <p>
-          <span class="inline-block mr-1 align-middle"
-            ><svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              class="w-4 h-4"
+            to move the view.
+          </p>
+          <p>
+            <strong class="font-semibold text-gray-700">Reset:</strong>
+            Double-click on the chart or press the
+            <kbd
+              class="px-1.5 py-0.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded"
+              >Esc</kbd
             >
-              <path
-                fill-rule="evenodd"
-                d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z"
-                clip-rule="evenodd"
-              /></svg
-          ></span>
-          Click on any branch in the legend to select/deselect it.
-        </p>
-      </div>
+            key to reset the zoom.
+          </p>
+        </div>
+      </footer>
+
       <div class="tooltip"></div>
     </main>
-    <!-- <svg class="context-chart"></svg> -->
     <script>
-      // --- GLOBAL STATE AND CONSTANTS ---
       let allData = [];
       const currentFilters = { scale: null, branches: [] };
       const DOMElements = {};
       const BRANCH_ICON_SVG = `<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><rect fill="none" height="256" width="256"/><path d="M248,120H187.5a60,60,0,0,0-118.9,0H8a8,8,0,0,0,0,16H68.6a60,60,0,0,0,118.9,0H248a8,8,0,0,0,0-16Z"/></svg>`;
 
-      // --- INITIALIZATION ---
       document.addEventListener('DOMContentLoaded', () => {
         cacheDOMElements();
         fetch('./fireweed.csv')
-          .then((response) => {
-            if (!response.ok)
-              throw new Error(
-                `Failed to load CSV file: ${response.status} ${response.statusText}`
-              );
-            return response.text();
-          })
+          .then((response) => response.text())
           .then((csvText) => {
-            const rawData = parseCSV(csvText);
-            if (!rawData || !Array.isArray(rawData) || rawData.length === 0)
-              throw new Error('No valid data found in CSV file');
-            allData = rawData.map((d) => ({
+            allData = parseCSV(csvText).map((d) => ({
               branch: d.branch || 'unknown',
               revision: d.revision,
               scale: +d.scale,
@@ -339,6 +319,20 @@
           .catch(handleError);
       });
 
+      function sortBranches(branches) {
+        return branches.sort((a, b) => {
+          if (a === 'master') return -1;
+          if (b === 'master') return 1;
+
+          const extractVersion = (s) => {
+            const match = s.match(/REL_(\d+)_STABLE/);
+            return match ? parseInt(match[1], 10) : -Infinity;
+          };
+
+          return extractVersion(b) - extractVersion(a);
+        });
+      }
+
       function initializeApp(data) {
         setupFilterControls(data);
         setupEventListeners();
@@ -346,7 +340,6 @@
         updateLastUpdated(data);
       }
 
-      // --- DOM & EVENT SETUP ---
       function cacheDOMElements() {
         DOMElements.svg = d3.select('#chart-svg');
         DOMElements.tooltip = d3.select('.tooltip');
@@ -356,7 +349,6 @@
         );
         DOMElements.legendContainer = d3.select('#legend-container');
         DOMElements.lastUpdated = document.getElementById('lastUpdated');
-        // Branch dropdown elements
         DOMElements.branchSelectButton = document.getElementById(
           'branch-select-button'
         );
@@ -380,7 +372,7 @@
         uniqueScales.forEach((scale) => {
           const option = document.createElement('option');
           option.value = scale;
-          option.textContent = `Scale ${scale}`;
+          option.textContent = `${scale}`;
           DOMElements.scaleFilter.appendChild(option);
         });
         currentFilters.scale = uniqueScales[0] || null;
@@ -391,11 +383,10 @@
       function setupEventListeners() {
         DOMElements.scaleFilter.addEventListener('change', (e) => {
           currentFilters.scale = +e.target.value;
-          updateBranchFilter(true); // Reset branches
+          updateBranchFilter(true);
           applyFiltersAndRender();
         });
 
-        // Branch dropdown toggle
         DOMElements.branchSelectButton.addEventListener('click', () => {
           const isHidden =
             DOMElements.branchFilterDropdown.style.display === 'none' ||
@@ -404,7 +395,7 @@
             ? 'block'
             : 'none';
         });
-        // Close dropdown when clicking outside
+
         document.addEventListener('click', (e) => {
           if (
             !DOMElements.branchSelectButton.contains(e.target) &&
@@ -414,7 +405,6 @@
           }
         });
 
-        // Handle checkbox changes inside the dropdown
         DOMElements.branchListContainer.addEventListener('change', (e) => {
           if (e.target.type === 'checkbox') {
             currentFilters.branches = Array.from(
@@ -433,41 +423,36 @@
         );
       }
 
-      // --- FILTER LOGIC ---
       function applyFiltersAndRender() {
         const dataForScale = allData.filter(
           (d) => d.scale === currentFilters.scale
         );
-
-        const allBranchesForScale = [
+        const allBranchesForScale = sortBranches([
           ...new Set(dataForScale.map((d) => d.branch)),
-        ].sort();
-
+        ]);
         const colorScale = d3
           .scaleOrdinal(d3.schemeTableau10)
           .domain(allBranchesForScale);
-
         const filteredData = dataForScale.filter((d) =>
           currentFilters.branches.includes(d.branch)
         );
-
-        renderChart(filteredData, dataForScale, colorScale);
-        renderLegend(dataForScale, colorScale);
+        renderChart(filteredData, colorScale);
+        renderLegend(allBranchesForScale, colorScale);
         updateActiveFiltersDisplay();
       }
 
       function updateBranchFilter(reset = true) {
-        const availableBranches = [
+        const availableBranches = sortBranches([
           ...new Set(
             allData
               .filter((d) => d.scale === currentFilters.scale)
               .map((d) => d.branch)
           ),
-        ].sort();
+        ]);
+
         if (reset) {
           currentFilters.branches = [...availableBranches];
         }
-
         DOMElements.branchListContainer.innerHTML = '';
         availableBranches.forEach((branch) => {
           const id = `branch-cb-${branch.replace(/\W/g, '-')}`;
@@ -479,7 +464,6 @@
           }><span>${branch}</span>`;
           DOMElements.branchListContainer.appendChild(label);
         });
-
         updateBranchButtonText();
       }
 
@@ -487,13 +471,12 @@
         const count = currentFilters.branches.length;
         const total =
           DOMElements.branchListContainer.querySelectorAll('input').length;
-        if (count === total) {
-          DOMElements.branchSelectButton.textContent = 'All Branches Selected';
-        } else if (count === 0) {
-          DOMElements.branchSelectButton.textContent = 'No Branches Selected';
-        } else {
-          DOMElements.branchSelectButton.textContent = `${count} Branches Selected`;
-        }
+        DOMElements.branchSelectButton.textContent =
+          count === total
+            ? 'All Branches Selected'
+            : count === 0
+            ? 'No Branches Selected'
+            : `${count} Branches Selected`;
       }
 
       function toggleAllBranches(select) {
@@ -508,7 +491,7 @@
       }
 
       // --- RENDERING ---
-      function renderChart(data, dataForContext, colorScale) {
+      function renderChart(data, colorScale) {
         const { svg, tooltip } = DOMElements;
         svg.selectAll('*').remove();
         if (data.length === 0) {
@@ -524,22 +507,26 @@
 
         const width = svg.node().getBoundingClientRect().width;
         const height = +svg.attr('height');
-        const margin = { top: 20, right: 30, bottom: 120, left: 60 };
+        const margin = { top: 20, right: 30, bottom: 40, left: 60 };
         const chartHeight = height - margin.top - margin.bottom;
         const chartWidth = width - margin.left - margin.right;
 
+        // === ZOOM/PAN LOGIC MERGED IN ===
         const xScale = d3
           .scaleTime()
           .domain(d3.extent(data, (d) => d.ctime))
           .range([0, chartWidth]);
-        const yExtent = d3.extent(data, (d) => d.metric);
-        const yPadding = (yExtent[1] - yExtent[0]) * 0.05 || 1;
-        const yMax = d3.max(data, (d) => d.metric);
         const yScale = d3
           .scaleLinear()
-          .domain([0, yMax * 1.05])
+          .domain([0, d3.max(data, (d) => d.metric) * 1.05])
           .range([chartHeight, 0])
           .nice();
+        const xInitial = xScale.copy();
+        const yInitial = yScale.copy();
+
+        const chart = svg
+          .append('g')
+          .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
         svg
           .append('defs')
@@ -548,62 +535,55 @@
           .append('rect')
           .attr('width', chartWidth)
           .attr('height', chartHeight);
-        const chart = svg
-          .append('g')
-          .attr('transform', `translate(${margin.left}, ${margin.top})`);
+
         const xAxis = d3
           .axisBottom(xScale)
-          .ticks(width / 100)
-          .tickFormat(d3.timeFormat('%b %d'));
+          .ticks(width / 140) // Fewer ticks to avoid clutter
+          .tickFormat(d3.timeFormat('%d-%m-%Y')); // New date format
         const yAxis = d3.axisLeft(yScale).ticks(8);
+
         const xGrid = d3
           .axisBottom(xScale)
           .tickSize(-chartHeight)
           .tickFormat('');
         const yGrid = d3.axisLeft(yScale).tickSize(-chartWidth).tickFormat('');
+
         chart
           .append('g')
           .attr('class', 'grid x-grid')
           .attr('transform', `translate(0, ${chartHeight})`)
           .call(xGrid);
         chart.append('g').attr('class', 'grid y-grid').call(yGrid);
+
         const xAxisGroup = chart
           .append('g')
           .attr('class', 'axis')
           .attr('transform', `translate(0, ${chartHeight})`)
           .call(xAxis);
+
         const yAxisGroup = chart.append('g').attr('class', 'axis').call(yAxis);
-        const zoom = d3
-          .zoom()
-          .scaleExtent([1, 1000])
-          .translateExtent([
-            [0, 0],
-            [chartWidth, chartHeight],
-          ])
+
+        const mainBrush = d3
+          .brush()
           .extent([
             [0, 0],
             [chartWidth, chartHeight],
           ])
-          .on('zoom', zoomed);
-
-        const topAxis = d3.axisTop(xScale).tickSize(0).tickFormat('');
-        const rightAxis = d3.axisRight(yScale).tickSize(0).tickFormat('');
-
-        chart.append('g').attr('class', 'axis top-axis').call(topAxis);
-
-        chart
+          .on('end', brushed);
+        const brushGroup = chart
           .append('g')
-          .attr('class', 'axis right-axis')
-          .attr('transform', `translate(${chartWidth}, 0)`)
-          .call(rightAxis);
+          .attr('class', 'brush')
+          .call(mainBrush);
 
         const clipArea = chart
           .append('g')
           .attr('clip-path', 'url(#chart-clip)');
+
         const line = d3
           .line()
           .x((d) => xScale(d.ctime))
           .y((d) => yScale(d.metric));
+
         const groupedData = d3.group(data, (d) => d.branch);
         const branchLines = clipArea
           .selectAll('.line')
@@ -612,88 +592,42 @@
           .attr('class', 'line')
           .attr('fill', 'none')
           .attr('stroke', ([branch]) => colorScale(branch))
-          .attr('stroke-width', 1)
+          .attr('stroke-width', 1.5)
           .attr('d', ([, v]) => line(v.sort((a, b) => a.ctime - b.ctime)));
+
         const branchCircles = clipArea
           .selectAll('circle')
           .data(data)
           .join('circle')
           .attr('cx', (d) => xScale(d.ctime))
           .attr('cy', (d) => yScale(d.metric))
-          .attr('r', 2)
-          .attr('fill', (d) => colorScale(d.branch));
-        svg.call(zoom);
-
-        chart
-          .append('rect')
-          .attr('width', chartWidth)
-          .attr('height', chartHeight)
-          .style('fill', 'none')
-          .style('pointer-events', 'all')
-          .attr('class', 'zoom-rect')
-          .lower(); // send behind elements
-
-        const contextHeight = 60,
-          contextTop = chartHeight + 60;
-        const contextGroup = svg
-          .append('g')
-          .attr('transform', `translate(${margin.left}, ${contextTop})`);
-        const xScale2 = d3
-          .scaleTime()
-          .domain(xScale.domain())
-          .range([0, chartWidth]);
-        const yScale2 = d3
-          .scaleLinear()
-          .domain(yScale.domain())
-          .range([contextHeight, 0]);
-        const contextLine = d3
-          .line()
-          .x((d) => xScale2(d.ctime))
-          .y((d) => yScale2(d.metric));
-        contextGroup
-          .selectAll('.context-line')
-          .data(groupedData)
-          .join('path')
-          .attr('class', 'context-line')
-          .attr('fill', 'none')
-          .attr('stroke', ([b]) => colorScale(b))
-          .attr('stroke-opacity', 0.7)
-          .attr('stroke-width', 1)
-          .attr('d', ([, v]) =>
-            contextLine(v.sort((a, b) => a.ctime - b.ctime))
-          );
-        contextGroup
-          .append('g')
-          .attr('transform', `translate(0, ${contextHeight})`)
-          .call(
-            d3
-              .axisBottom(xScale2)
-              .ticks(width / 100)
-              .tickFormat(d3.timeFormat('%b %Y'))
-          );
-        const brush = d3
-          .brushX()
-          .extent([
-            [0, 0],
-            [chartWidth, contextHeight],
-          ])
-          .on('end', brushed);
-        contextGroup.append('g').attr('class', 'brush').call(brush);
+          .attr('r', 3.5)
+          .attr('fill', (d) => colorScale(d.branch))
+          .attr('stroke', 'white')
+          .attr('stroke-width', 1);
 
         let tTimeout;
         branchCircles
           .on('mouseover', function (event, d) {
-            const tooltip = d3.select('.tooltip');
-            clearTimeout(tTimeout); // tTimeout is your variable for the hide timeout
+            clearTimeout(tTimeout);
+            const currentXDomain = xScale.domain();
+            const currentYDomain = yScale.domain();
+            if (
+              d.ctime < currentXDomain[0] ||
+              d.ctime > currentXDomain[1] ||
+              d.metric < currentYDomain[0] ||
+              d.metric > currentYDomain[1]
+            ) {
+              return;
+            }
 
-            // Get pointer position relative to the page
-            const [pageX, pageY] = d3.pointer(event);
+            const [pageX, pageY] = d3.pointer(event, document.body); // Use document.body for correct page positioning
 
             tooltip
               .style('opacity', 1)
-              .style('display', 'block')
-              .style('left', `${pageX}px`) // Position relative to the pointer
-              .style('top', `${pageY + 100}px`) // Position relative to the pointer
+              .style('left', `${pageX + 15}px`)
+              .style('top', `${pageY - 15}px`)
+              .style('transform', 'translateY(-100%)')
               .html(
                 `<div class="tooltip-date">${d3.timeFormat('%A, %B %d, %Y')(
                   d.ctime
@@ -710,25 +644,56 @@
                   d.revision
                 }" target="_blank">View on GitHub</a></div>`
               );
+
+            d3.select(this).attr('r', 5).raise();
           })
-          .on('mouseout', () => {
-            tTimeout = setTimeout(hideTooltip, 250);
+          .on('mouseout', function () {
+            d3.select(this).attr('r', 3.5);
+            tTimeout = setTimeout(() => tooltip.style('opacity', 0), 250);
           });
+
         tooltip
           .on('mouseover', () => clearTimeout(tTimeout))
-          .on('mouseout', () => (tTimeout = setTimeout(hideTooltip, 250)));
-        function hideTooltip() {
-          tooltip.style('opacity', 0).style('pointer-events', 'none');
-        }
-        function brushed(event) {
-          if (!event.selection) return;
-          const [x0, x1] = event.selection.map(xScale2.invert);
-          xScale.domain([x0, x1]);
-          const t = svg.transition().duration(400);
-          const vData = data.filter((d) => d.ctime >= x0 && d.ctime <= x1);
-          const yExt = d3.extent(vData, (d) => d.metric);
-          const yPad = yExt[0] && yExt[1] ? (yExt[1] - yExt[0]) * 0.05 : 1;
-          yScale.domain([(yExt[0] || 0) - yPad, (yExt[1] || 1) + yPad]).nice();
+          .on(
+            'mouseout',
+            () =>
+              (tTimeout = setTimeout(() => tooltip.style('opacity', 0), 250))
+          );
+
+        chart.on('dblclick', resetZoom);
+
+        const handleKeyDown = (event) => {
+          event.preventDefault();
+          switch (event.key) {
+            case 'ArrowUp':
+              pan(0.05, 'y');
+              break;
+            case 'ArrowDown':
+              pan(-0.05, 'y');
+              break;
+            case 'ArrowLeft':
+              pan(-0.05, 'x');
+              break;
+            case 'ArrowRight':
+              pan(0.05, 'x');
+              break;
+            case 'Escape':
+              resetZoom();
+              break;
+          }
+        };
+
+        svg
+          .on('mouseover', () => {
+            window.addEventListener('keydown', handleKeyDown);
+          })
+          .on('mouseout', () => {
+            window.removeEventListener('keydown', handleKeyDown);
+          });
+
+        // --- INTERACTION HELPER FUNCTIONS ---
+        function redrawChart(duration = 750) {
+          const t = svg.transition().duration(duration);
           xAxisGroup.transition(t).call(xAxis);
           yAxisGroup.transition(t).call(yAxis);
           chart.select('.x-grid').transition(t).call(xGrid.scale(xScale));
@@ -739,30 +704,43 @@
             .attr('cx', (d) => xScale(d.ctime))
             .attr('cy', (d) => yScale(d.metric));
         }
-        function zoomed(event) {
-          const t = event.transform;
-          const newX = t.rescaleX(xScale);
-          const newY = t.rescaleY(yScale);
 
-          xAxisGroup.call(xAxis.scale(newX));
-          yAxisGroup.call(yAxis.scale(newY));
-          chart.select('.x-grid').call(xGrid.scale(newX));
-          chart.select('.y-grid').call(yGrid.scale(newY));
-          chart.select('.top-axis').call(topAxis.scale(newX));
-          chart.select('.right-axis').call(rightAxis.scale(newY));
+        function brushed(event) {
+          if (!event.selection) return;
+          const [[x0, y0], [x1, y1]] = event.selection;
+          xScale.domain([xScale.invert(x0), xScale.invert(x1)]);
+          yScale.domain([yScale.invert(y1), yScale.invert(y0)]);
+          brushGroup.call(mainBrush.move, null);
+          redrawChart();
+        }
 
-          branchLines.attr('d', ([, v]) =>
-            line.x((d) => newX(d.ctime)).y((d) => newY(d.metric))(v)
-          );
-          branchCircles
-            .attr('cx', (d) => newX(d.ctime))
-            .attr('cy', (d) => newY(d.metric));
+        function resetZoom() {
+          xScale.domain(xInitial.domain());
+          yScale.domain(yInitial.domain());
+          redrawChart();
+        }
+
+        function pan(percentage, axis) {
+          if (axis === 'x') {
+            const [x0, x1] = xScale.domain();
+            const span = x1.getTime() - x0.getTime();
+            const shift = span * percentage;
+            xScale.domain([
+              new Date(x0.getTime() + shift),
+              new Date(x1.getTime() + shift),
+            ]);
+          } else {
+            const [y0, y1] = yScale.domain();
+            const span = y1 - y0;
+            const shift = span * percentage;
+            yScale.domain([y0 + shift, y1 + shift]);
+          }
+          redrawChart(200);
         }
       }
 
-      function renderLegend(dataForScale, colorScale) {
+      function renderLegend(branches, colorScale) {
         const { legendContainer } = DOMElements;
-        const branches = [...new Set(dataForScale.map((d) => d.branch))].sort();
         legendContainer
           .selectAll('.legend-item')
           .data(branches, (d) => d)
@@ -780,7 +758,6 @@
                 );
                 if (checkbox) {
                   checkbox.checked = !checkbox.checked;
-                  // Manually trigger change event to update filter state
                   checkbox.dispatchEvent(
                     new Event('change', { bubbles: true })
                   );
@@ -798,7 +775,7 @@
         const scaleText = `Scale: ${currentFilters.scale}`;
         const branchesText =
           currentFilters.branches.length > 0
-            ? `Branches: ${currentFilters.branches.length} selected`
+            ? `${currentFilters.branches.length} branches selected`
             : 'No branches selected';
         DOMElements.activeFiltersDisplay.textContent = `${scaleText} | ${branchesText}`;
       }
@@ -807,23 +784,25 @@
         if (!data || data.length === 0) return;
         const maxDate = d3.max(data, (d) => d.ctime);
         DOMElements.lastUpdated.textContent = `Last updated: ${d3.timeFormat(
-          '%Y-%m-%d %H:%M:%S'
+          '%b %d, %Y'
         )(maxDate)}`;
       }
 
-      // --- UTILITY ---
       function parseCSV(csvText) {
         const lines = csvText.trim().split('\n');
         if (lines.length < 2) return [];
         const headers = lines[0].split(',').map((h) => h.trim());
         return lines.slice(1).map((line) => {
-          const values = line.split(',');
+          const values = line.match(/(".*?"|[^",\n]+)(?=\s*,|\s*$)/g) || [];
           return headers.reduce((obj, header, i) => {
-            obj[header] = values[i] ? values[i].trim() : '';
+            obj[header] = values[i]
+              ? values[i].replace(/^"|"$/g, '').trim()
+              : '';
             return obj;
           }, {});
         });
       }
+
       function handleError(error) {
         console.error('Error:', error);
         DOMElements.svg.selectAll('*').remove();
