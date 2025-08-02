@@ -75,7 +75,7 @@ function setupFilterControls(data) {
   });
 
   // Set the current selected scale to the first available one, or null if none
-  currentFilters.scale = uniqueScales[1] || null;
+  currentFilters.scale = uniqueScales[0] || null;
 
   // Reflect the selected scale in the dropdown UI
   DOMElements.scaleFilter.value = currentFilters.scale;
