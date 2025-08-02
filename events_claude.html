@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>D3.js Line Chart with Dynamic Brush Layering</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: #f5f5f5;
+      }
+
+      .chart-container {
+        background-color: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .line {
+        fill: none;
+        stroke: #2563eb;
+        stroke-width: 2;
+      }
+
+      .dot {
+        fill: #2563eb;
+        stroke: white;
+        stroke-width: 2;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .dot:hover {
+        fill: #dc2626;
+        r: 6;
+      }
+
+      .brush .overlay {
+        fill: rgba(37, 99, 235, 0.1);
+      }
+
+      .brush .selection {
+        fill: rgba(37, 99, 235, 0.2);
+        stroke: #2563eb;
+        stroke-width: 1;
+      }
+
+      .axis {
+        font-size: 12px;
+      }
+
+      .grid line {
+        stroke: #e5e7eb;
+        stroke-dasharray: 2, 2;
+      }
+
+      .grid path {
+        stroke-width: 0;
+      }
+
+      .tooltip {
+        position: absolute;
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        border-radius: 4px;
+        font-size: 12px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+
+      .reset-button {
+        margin-top: 10px;
+        padding: 8px 16px;
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      .reset-button:hover {
+        background: #1d4ed8;
+      }
+
+      .reset-button:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="chart-container">
+      <h2>Interactive Line Chart with Dynamic Brush Layering</h2>
+      <p>
+        Hover over points to see values. Click and drag to brush/zoom. The brush
+        layer dynamically moves to allow both interactions.
+      </p>
+      <div id="chart"></div>
+      <button class="reset-button" id="resetBtn">Reset Zoom</button>
+    </div>
+
+    <script>
+      // Generate sample data
+      function generateData() {
+        const data = [];
+        const startDate = new Date(2023, 0, 1);
+        for (let i = 0; i < 50; i++) {
+          const date = new Date(
+            startDate.getTime() + i * 7 * 24 * 60 * 60 * 1000
+          ); // Weekly data
+          const value = 100 + Math.sin(i * 0.3) * 30 + Math.random() * 20;
+          data.push({ date, value, index: i });
+        }
+        return data;
+      }
+
+      // Chart configuration
+      const margin = { top: 20, right: 30, bottom: 40, left: 50 };
+      const width = 800 - margin.left - margin.right;
+      const height = 400 - margin.top - margin.bottom;
+
+      // Create SVG
+      const svg = d3
+        .select('#chart')
+        .append('svg')
+        .attr('width', width + margin.left + margin.right)
+        .attr('height', height + margin.top + margin.bottom);
+
+      const g = svg
+        .append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+
+      // Create tooltip
+      const tooltip = d3.select('body').append('div').attr('class', 'tooltip');
+
+      // Generate and prepare data
+      const originalData = generateData();
+      let currentData = [...originalData];
+
+      // Scales
+      const xScale = d3
+        .scaleTime()
+        .domain(d3.extent(originalData, (d) => d.date))
+        .range([0, width]);
+
+      const yScale = d3
+        .scaleLinear()
+        .domain(d3.extent(originalData, (d) => d.value))
+        .nice()
+        .range([height, 0]);
+
+      // Line generator
+      const line = d3
+        .line()
+        .x((d) => xScale(d.date))
+        .y((d) => yScale(d.value))
+        .curve(d3.curveMonotoneX);
+
+      // Create grid
+      const xGrid = g
+        .append('g')
+        .attr('class', 'grid')
+        .attr('transform', `translate(0,${height})`)
+        .call(d3.axisBottom(xScale).tickSize(-height).tickFormat(''));
+
+      const yGrid = g
+        .append('g')
+        .attr('class', 'grid')
+        .call(d3.axisLeft(yScale).tickSize(-width).tickFormat(''));
+
+      // Create axes
+      const xAxis = g
+        .append('g')
+        .attr('class', 'axis')
+        .attr('transform', `translate(0,${height})`)
+        .call(d3.axisBottom(xScale).tickFormat(d3.timeFormat('%b %d')));
+
+      const yAxis = g
+        .append('g')
+        .attr('class', 'axis')
+        .call(d3.axisLeft(yScale));
+
+      // Create line path
+      const linePath = g
+        .append('path')
+        .datum(currentData)
+        .attr('class', 'line')
+        .attr('d', line);
+
+      // Create brush (initially underneath)
+      const brush = d3
+        .brushX()
+        .extent([
+          [0, 0],
+          [width, height],
+        ])
+        .on('end', brushed);
+
+      const brushGroup = g.append('g').attr('class', 'brush').call(brush);
+
+      // Create dots group (above brush initially)
+      const dotsGroup = g.append('g').attr('class', 'dots-group');
+
+      // Add capturing mousedown listener to the main group
+      g.on('mousedown.brush-reorder', function (event) {
+        // Move brush to front when mousedown occurs
+        brushGroup.raise();
+      });
+
+      // Add brushend event to move brush back
+      brush.on('end.reorder', function (event) {
+        // Move brush back under dots after brushing
+        setTimeout(() => {
+          dotsGroup.raise();
+        }, 50); // Small delay to ensure brush operation completes
+      });
+
+      // Create dots
+      function updateDots() {
+        const dots = dotsGroup
+          .selectAll('.dot')
+          .data(currentData, (d) => d.index);
+
+        dots
+          .enter()
+          .append('circle')
+          .attr('class', 'dot')
+          .attr('r', 0)
+          .attr('cx', (d) => xScale(d.date))
+          .attr('cy', (d) => yScale(d.value))
+          .on('mouseover', function (event, d) {
+            d3.select(this).transition().duration(150).attr('r', 6);
+
+            tooltip.transition().duration(200).style('opacity', 1);
+
+            tooltip
+              .html(
+                `
+                        <strong>Date:</strong> ${d3.timeFormat('%b %d, %Y')(
+                          d.date
+                        )}<br>
+                        <strong>Value:</strong> ${d.value.toFixed(2)}
+                    `
+              )
+              .style('left', event.pageX + 10 + 'px')
+              .style('top', event.pageY - 28 + 'px');
+          })
+          .on('mouseout', function (event, d) {
+            d3.select(this).transition().duration(150).attr('r', 4);
+
+            tooltip.transition().duration(500).style('opacity', 0);
+          })
+          .transition()
+          .duration(500)
+          .attr('r', 4);
+
+        dots
+          .transition()
+          .duration(500)
+          .attr('cx', (d) => xScale(d.date))
+          .attr('cy', (d) => yScale(d.value));
+
+        dots.exit().transition().duration(300).attr('r', 0).remove();
+      }
+
+      // Initial render
+      updateDots();
+
+      // Brush handler
+      function brushed(event) {
+        const selection = event.selection;
+        const resetBtn = document.getElementById('resetBtn');
+
+        if (!selection) {
+          resetBtn.disabled = true;
+          return;
+        }
+
+        resetBtn.disabled = false;
+
+        // Get selected date range
+        const [x0, x1] = selection.map(xScale.invert);
+
+        // Filter data based on selection
+        const filteredData = originalData.filter(
+          (d) => d.date >= x0 && d.date <= x1
+        );
+
+        if (filteredData.length === 0) return;
+
+        // Update current data
+        currentData = filteredData;
+
+        // Update scales
+        xScale.domain([x0, x1]);
+        yScale.domain(d3.extent(filteredData, (d) => d.value)).nice();
+
+        // Update axes with animation
+        xAxis
+          .transition()
+          .duration(500)
+          .call(d3.axisBottom(xScale).tickFormat(d3.timeFormat('%b %d')));
+
+        yAxis.transition().duration(500).call(d3.axisLeft(yScale));
+
+        // Update grid
+        xGrid
+          .transition()
+          .duration(500)
+          .call(d3.axisBottom(xScale).tickSize(-height).tickFormat(''));
+
+        yGrid
+          .transition()
+          .duration(500)
+          .call(d3.axisLeft(yScale).tickSize(-width).tickFormat(''));
+
+        // Update line with animation
+        linePath.datum(filteredData).transition().duration(500).attr('d', line);
+
+        // Update dots
+        updateDots();
+
+        // Clear brush selection
+        brushGroup.call(brush.move, null);
+      }
+
+      // Reset function
+      function resetZoom() {
+        currentData = [...originalData];
+
+        // Reset scales
+        xScale.domain(d3.extent(originalData, (d) => d.date));
+        yScale.domain(d3.extent(originalData, (d) => d.value)).nice();
+
+        // Update everything with animation
+        xAxis
+          .transition()
+          .duration(750)
+          .call(d3.axisBottom(xScale).tickFormat(d3.timeFormat('%b %d')));
+
+        yAxis.transition().duration(750).call(d3.axisLeft(yScale));
+
+        xGrid
+          .transition()
+          .duration(750)
+          .call(d3.axisBottom(xScale).tickSize(-height).tickFormat(''));
+
+        yGrid
+          .transition()
+          .duration(750)
+          .call(d3.axisLeft(yScale).tickSize(-width).tickFormat(''));
+
+        linePath.datum(currentData).transition().duration(750).attr('d', line);
+
+        updateDots();
+
+        document.getElementById('resetBtn').disabled = true;
+      }
+
+      // Add reset button functionality
+      document.getElementById('resetBtn').addEventListener('click', resetZoom);
+      document.getElementById('resetBtn').disabled = true;
+
+      // Ensure dots are initially on top
+      dotsGroup.raise();
+    </script>
+  </body>
+</html>

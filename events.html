@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>D3 Brush with Dynamic Layering (Corrected)</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      .point {
+        fill: steelblue;
+        stroke: #fff;
+        stroke-width: 1.5px;
+        /* Add transition for smoother hover effect */
+        transition: r 0.2s ease-in-out, fill 0.2s ease-in-out;
+      }
+      .point:hover {
+        fill: orange;
+        r: 7px;
+      }
+      .tooltip {
+        position: absolute;
+        text-align: center;
+        width: 80px;
+        height: 40px;
+        padding: 2px;
+        font: 12px sans-serif;
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        border: 0px;
+        border-radius: 8px;
+        pointer-events: none; /* Important for tooltips */
+      }
+      .line {
+        fill: none;
+        stroke: steelblue;
+        stroke-width: 2px;
+      }
+      .brush .overlay {
+        /* Makes the brush area detectable over the whole chart */
+        pointer-events: all;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="chart"></div>
+    <div id="tooltip" class="tooltip" style="opacity: 0"></div>
+
+    <script>
+      // 1. Setup
+      const margin = { top: 20, right: 20, bottom: 30, left: 50 };
+      const width = 960 - margin.left - margin.right;
+      const height = 500 - margin.top - margin.bottom;
+
+      // Sample Data
+      const data = d3.range(100).map((i) => ({
+        x: i / 5,
+        y: Math.sin(i / 5) + Math.random() * 0.3,
+      }));
+
+      const svg = d3
+        .select('#chart')
+        .append('svg')
+        .attr('width', width + margin.left + margin.right)
+        .attr('height', height + margin.top + margin.bottom);
+
+      const g = svg
+        .append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+
+      let x = d3
+        .scaleLinear()
+        .domain(d3.extent(data, (d) => d.x))
+        .range([0, width]);
+
+      const y = d3.scaleLinear().domain([-1.5, 1.5]).range([height, 0]);
+
+      const xAxis = g
+        .append('g')
+        .attr('class', 'axis axis--x')
+        .attr('transform', `translate(0,${height})`)
+        .call(d3.axisBottom(x));
+
+      const yAxis = g
+        .append('g')
+        .attr('class', 'axis axis--y')
+        .call(d3.axisLeft(y));
+
+      const line = d3
+        .line()
+        .x((d) => x(d.x))
+        .y((d) => y(d.y));
+
+      const tooltip = d3.select('#tooltip');
+
+      // 2. Create Chart Elements in the correct order
+      // The brush group is added FIRST, so it's initially underneath the points.
+      const brushGroup = g.append('g').attr('class', 'brush');
+
+      const path = g
+        .append('path')
+        .datum(data)
+        .attr('class', 'line')
+        .attr('d', line);
+
+      const points = g
+        .selectAll('.point')
+        .data(data)
+        .enter()
+        .append('circle')
+        .attr('class', 'point')
+        .attr('cx', (d) => x(d.x))
+        .attr('cy', (d) => y(d.y))
+        .attr('r', 5)
+        .on('mouseover', (event, d) => {
+          tooltip.transition().duration(200).style('opacity', 0.9);
+          tooltip
+            .html(`X: ${d.x.toFixed(2)}<br/>Y: ${d.y.toFixed(2)}`)
+            .style('left', event.pageX + 10 + 'px')
+            .style('top', event.pageY - 28 + 'px');
+        })
+        .on('mouseout', (d) => {
+          tooltip.transition().duration(500).style('opacity', 0);
+        });
+
+      // 3. The Layering Solution & Brush Logic
+      const brush = d3
+        .brushX()
+        .extent([
+          [0, 0],
+          [width, height],
+        ])
+        .on('start', brushStarted)
+        .on('end', brushEnded);
+
+      brushGroup.call(brush);
+
+      function brushStarted() {
+        // When the brush gesture starts, bring the brush group to the front.
+        brushGroup.raise();
+      }
+
+      function brushEnded(event) {
+        // IMPORTANT: At the end of the gesture, send the brush group to the back.
+        // This ensures that the data points are once again on top and hoverable.
+        brushGroup.lower();
+
+        // Ignore API-triggered brush events
+        if (!event.sourceEvent) return;
+
+        const selection = event.selection;
+
+        // If there is no selection (e.g., a simple click), do nothing.
+        // Or, to implement a reset-on-click, you could reset the domain here.
+        if (!selection) return;
+
+        // Calculate the new domain from the selection
+        const newDomain = [x.invert(selection[0]), x.invert(selection[1])];
+        x.domain(newDomain);
+
+        // Remove the visual brush selection rectangle
+        // This is a programmatic event, so our !event.sourceEvent check above prevents an infinite loop.
+        brushGroup.call(brush.move, null);
+
+        // 4. Update visuals based on the new domain (Zoom)
+        xAxis.transition().duration(750).call(d3.axisBottom(x));
+        path.transition().duration(750).attr('d', line);
+        points
+          .transition()
+          .duration(750)
+          .attr('cx', (d) => x(d.x))
+          .attr('cy', (d) => y(d.y));
+      }
+    </script>
+  </body>
+</html>
