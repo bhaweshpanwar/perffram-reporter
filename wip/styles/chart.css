@@ -19,7 +19,9 @@
   display: none;
 }
 .grid line {
-  stroke: #e2e8f0;
+  stroke: #e5e7eb;
+  stroke-width: 0.9;
+  stroke-dasharray: 2, 2;
 }
 
 /* D3 Brush Styles */

@@ -321,28 +321,8 @@ function renderChart(data, colorScale) {
     .attr('class', 'axis y-axis-group')
     .call(yAxis);
 
+  //give this blue color
   const clipArea = chart.append('g').attr('clip-path', 'url(#chart-clip)');
-
-  // X-Axis Label
-  // chart
-  //   .append('text')
-  //   .attr('class', 'axis-label x-label')
-  //   .attr('text-anchor', 'middle')
-  //   .attr('x', chartWidth / 2) // Center the label horizontally.
-  //   .attr('y', chartHeight + margin.bottom - 5) // Position it below the x-axis within the margin area.
-  //   .style('fill', '#333')
-  //   .text('Commit Date');
-
-  // // Y-Axis Label
-  // chart
-  //   .append('text')
-  //   .attr('class', 'axis-label y-label')
-  //   .attr('transform', 'rotate(-90)') // Rotate the label for the Y-axis.
-  //   .attr('text-anchor', 'middle')
-  //   .attr('y', 0 - margin.left + 20) // Position it to the left of the y-axis.
-  //   .attr('x', 0 - chartHeight / 2) // Center it vertically along the chart height.
-  //   .style('fill', '#333')
-  //   .text('Metric Value');
 
   line = d3
     .line()
@@ -359,16 +339,6 @@ function renderChart(data, colorScale) {
     .attr('stroke', ([branch]) => colorScale(branch))
     .attr('stroke-width', 2)
     .attr('d', ([, v]) => line(v.sort((a, b) => a.ctime - b.ctime)));
-
-  // chart
-  //   .selectAll('.line')
-  //   .data(groupedData)
-  //   .join('path')
-  //   .attr('class', 'line')
-  //   .attr('fill', 'none')
-  //   .attr('stroke', ([branch]) => colorScale(branch))
-  //   .attr('stroke-width', 1.5)
-  //   .attr('d', ([, v]) => line(v.sort((a, b) => a.ctime - b.ctime)));
 
   const contextTopPosition = mainChartHeight + margin.top;
   const contextGroup = svg
@@ -443,18 +413,6 @@ function renderChart(data, colorScale) {
     .attr('fill', (d) => colorScale(d.branch))
     .attr('stroke', 'white')
     .attr('stroke-width', 1);
-
-  // const branchCircles = chart
-  //   .selectAll('.data-circle')
-  //   .data(data)
-  //   .join('circle')
-  //   .attr('class', 'data-circle')
-  //   .attr('cx', (d) => xScale(d.ctime))
-  //   .attr('cy', (d) => yScale(d.metric))
-  //   .attr('r', 3.5)
-  //   .attr('fill', (d) => colorScale(d.branch))
-  //   .attr('stroke', 'white')
-  //   .attr('stroke-width', 1);
 
   const xAxisBrushGroup = clipArea
     .append('g')
@@ -543,15 +501,14 @@ function renderChart(data, colorScale) {
 
 function setupTooltip(circles, colorScale, xScale, yScale, margin) {
   const tooltip = DOMElements.tooltip;
-  const container = d3.select('main'); // The main content area is our boundary
+  const container = d3.select('main');
 
   circles
     .style('cursor', 'pointer')
     .on('mouseover', function (event, d) {
       const circle = d3.select(this).style('cursor', 'pointer').attr('r', 7);
 
-      // 1. Set content and make tooltip visible to measure its size
-      // add time also
+      // Set content and make tooltip visible to measure its size
       tooltip
         .html(
           `<div class="tooltip-date">${d3.timeFormat('%A, %B %d, %Y')(
@@ -571,74 +528,56 @@ function setupTooltip(circles, colorScale, xScale, yScale, margin) {
         )
         .classed('show', true);
 
-      // 2. Get dimensions
+      // Get dimensions
       const tooltipNode = tooltip.node();
       const tooltipWidth = tooltipNode.offsetWidth;
       const tooltipHeight = tooltipNode.offsetHeight;
+      const offset = 20;
+
+      // Use mouse position
       const containerRect = container.node().getBoundingClientRect();
-      const offset = 25; // Space between point and tooltip
+      const pointX = event.clientX - containerRect.left;
+      const pointY = event.clientY - containerRect.top;
 
-      // 3. Get the CIRCLE's screen position, not the mouse's. This is the key fix.
-      const point = DOMElements.svg.node().createSVGPoint();
-      point.x = xScale(d.ctime) + margin.left;
-      point.y = yScale(d.metric) + margin.top;
-      const screenPos = point.matrixTransform(
-        DOMElements.svg.node().getScreenCTM()
-      );
+      // Overflow-aware positioning logic
+      const placements = [
+        {
+          name: 'top',
+          x: pointX - tooltipWidth / 2,
+          y: pointY - tooltipHeight - offset,
+        },
+        { name: 'bottom', x: pointX - tooltipWidth / 2, y: pointY + offset },
+        { name: 'right', x: pointX + offset, y: pointY - tooltipHeight / 2 },
+        {
+          name: 'left',
+          x: pointX - tooltipWidth - offset,
+          y: pointY - tooltipHeight / 2,
+        },
+      ];
 
-      // Convert the circle's absolute screen position to be relative to the container
-      const pointX = screenPos.x - containerRect.left;
-      const pointY = screenPos.y - containerRect.top;
-
-      // --- OVERFLOW-AWARE POSITIONING LOGIC ---
-      const placements = ['top', 'right', 'bottom', 'left'];
-      let finalPlacement = '';
-      let finalLeft = 0;
-      let finalTop = 0;
-
+      // Find first valid placement
+      let finalPlacement = null;
       for (const placement of placements) {
-        let left, top;
-        switch (placement) {
-          case 'top':
-            left = pointX - tooltipWidth / 2;
-            top = pointY - tooltipHeight - offset;
-            break;
-          case 'right':
-            left = pointX + offset;
-            top = pointY - tooltipHeight / 2;
-            break;
-          case 'bottom':
-            left = pointX - tooltipWidth / 2;
-            top = pointY + offset;
-            break;
-          case 'left':
-            left = pointX - tooltipWidth - offset;
-            top = pointY - tooltipHeight / 2;
-            break;
-        }
-
         if (
-          checkBounds(
-            left,
-            top,
-            tooltipWidth,
-            tooltipHeight,
-            containerRect.width,
-            containerRect.height
-          )
+          placement.x >= 0 &&
+          placement.y >= 0 &&
+          placement.x + tooltipWidth <= containerRect.width &&
+          placement.y + tooltipHeight <= containerRect.height
         ) {
           finalPlacement = placement;
-          finalLeft = left;
-          finalTop = top;
-          break; // Found a valid placement
+          break;
         }
       }
 
-      // Fallback if no position fits
+      // Fallback to top if no valid placement
       if (!finalPlacement) {
-        finalPlacement = 'top';
-        finalLeft = pointX - tooltipWidth / 2;
-        finalTop = pointY - tooltipHeight - offset;
+        finalPlacement = placements[0]; // top
+        // Clamp to bounds
+        finalPlacement.x = Math.max(
+          0,
+          Math.min(finalPlacement.x, containerRect.width - tooltipWidth)
+        );
+        finalPlacement.y = Math.max(0, finalPlacement.y);
       }
 
       const arrowMap = {
@@ -649,15 +588,14 @@ function setupTooltip(circles, colorScale, xScale, yScale, margin) {
       };
 
       tooltip
-        .attr('class', 'tooltip show') // Reset classes
-        .classed(arrowMap[finalPlacement], true)
-        .style('left', `${finalLeft + 10}px`)
-        .style('top', `${finalTop + 18}px`);
+        .attr('class', 'tooltip show')
+        .classed(arrowMap[finalPlacement.name], true)
+        .style('left', `${finalPlacement.x}px`)
+        .style('top', `${finalPlacement.y}px`);
     })
     .on('mouseout', function () {
       d3.select(this).style('cursor', 'pointer').transition().attr('r', 4);
 
-      // Use setTimeout to allow for cursor to move to tooltip
       setTimeout(() => {
         if (!tooltip.node().matches(':hover')) {
           tooltip.classed('show', false);
@@ -665,134 +603,10 @@ function setupTooltip(circles, colorScale, xScale, yScale, margin) {
       }, 50);
     });
 
-  // Add a listener to the tooltip itself
   tooltip.on('mouseleave', () => {
     tooltip.classed('show', false);
   });
 }
-
-// .on('mouseout', function () {
-//       d3.select(this)
-//         .style('cursor', 'pointer')
-//         .transition()
-//         .duration(150)
-//         .attr('r', 4);
-
-//       // Use setTimeout to allow for cursor to move to tooltip
-//       setTimeout(() => {
-//         if (!tooltip.node().matches(':hover')) {
-//           tooltip.classed('show', false);
-//         }
-//       }, 50);
-//     });
-
-//   tooltip.on('mouseleave', () => {
-//     tooltip.classed('show', false);
-//   });
-// }
-
-// function setupTooltip(circles, colorScale, xScale, yScale, margin) {
-//   const tooltip = DOMElements.tooltip;
-//   const container = d3.select('main');
-//   const offset = 0;
-//   const arrowMap = {
-//     top: 'arrow-down',
-//     right: 'arrow-left',
-//     bottom: 'arrow-up',
-//     left: 'arrow-right',
-//   };
-
-//   // Pre-calculate static elements
-//   const tooltipNode = tooltip.node();
-//   const containerRect = container.node().getBoundingClientRect();
-
-//   circles
-//     .style('cursor', 'pointer')
-//     .on('mouseover', function (event, d) {
-//       const circle = d3
-//         .select(this)
-//         .style('cursor', 'pointer')
-//         .transition()
-//         .duration(150)
-//         .attr('r', 7);
-
-//       tooltip
-//         .html(
-//           `<div class="tooltip-date">${d3.timeFormat('%A, %B %d, %Y')(
-//             d.ctime
-//           )}</div>
-//                 <div class="version-item">
-//                     <span class="version-color" style="background-color:${colorScale(
-//                       d.branch
-//                     )}"></span>
-//                     <span class="version-name">${d.branch}</span>
-//                     <span class="version-value">${d.metric.toFixed(2)}</span>
-//                 </div>
-//                 <div class="commit-details">
-//                     <strong>Revision:</strong> ${d.revision.substring(
-//                       0,
-//                       10
-//                     )}...<br>
-//                     <a href="https://github.com/postgres/postgres/commit/${
-//                       d.revision
-//                     }" target="_blank">View on GitHub</a>
-//                 </div>`
-//         )
-//         .classed('show', true);
-
-//       // Get dimensions after content is set
-//       const tooltipWidth = tooltipNode.offsetWidth;
-//       const tooltipHeight = tooltipNode.offsetHeight;
-
-//       // Calculate position
-//       const point = DOMElements.svg.node().createSVGPoint();
-//       point.x = xScale(d.ctime) + margin.left;
-//       point.y = yScale(d.metric) + margin.top;
-//       const screenPos = point.matrixTransform(
-//         DOMElements.svg.node().getScreenCTM()
-//       );
-//       const pointX = screenPos.x - containerRect.left;
-//       const pointY = screenPos.y - containerRect.top;
-
-//       // Simplified positioning logic (you can keep your original if needed)
-//       let left = pointX - tooltipWidth / 2;
-//       let top = pointY - tooltipHeight - offset;
-//       let placement = 'top';
-
-//       // Adjust if out of bounds (simplified example)
-//       if (top < 0) {
-//         top = pointY + offset;
-//         placement = 'bottom';
-//       }
-//       if (left < 0) left = 0;
-//       if (left + tooltipWidth > containerRect.width)
-//         left = containerRect.width - tooltipWidth;
-
-//       tooltip
-//         .attr('class', 'tooltip show')
-//         .classed(arrowMap[placement], true)
-//         .style('left', `${left}px`)
-//         .style('top', `${top}px`);
-//     })
-//     .on('mouseout', function () {
-//       d3.select(this)
-//         .style('cursor', 'pointer')
-//         .transition()
-//         .duration(150)
-//         .attr('r', 4);
-
-//       // Use setTimeout to allow for cursor to move to tooltip
-//       setTimeout(() => {
-//         if (!tooltip.node().matches(':hover')) {
-//           tooltip.classed('show', false);
-//         }
-//       }, 50);
-//     });
-
-//   tooltip.on('mouseleave', () => {
-//     tooltip.classed('show', false);
-//   });
-// }
 
 function renderLegend(branches, colorScale) {
   console.log('Rendering legend with branches:', branches);

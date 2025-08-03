@@ -1,9 +1,9 @@
 /* General body and main container styles */
 body {
   background-color: #fff;
-  padding: 2px;
   box-sizing: border-box;
   font-family: 'Inter', sans-serif;
+  margin: 0;
 }
 
 /* main {
@@ -17,7 +17,9 @@ header {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 1.5rem; /* Replaces mb-6 */
-  padding-bottom: 1rem; /* Replaces pb-4 */
+  padding-bottom: 1rem; /*Replaces pb-4 */
+  padding-left: 1rem; /* Replaces pl-4 */
+  padding-right: 1rem; /* Replaces pr-4 */
 }
 
 h1 {
@@ -42,6 +44,8 @@ h1 {
   margin-bottom: 2rem; /* Replaces mb-8 */
   margin-top: 1rem; /* Replaces mt-4 */
   max-width: 56rem; /* Replaces max-w-4xl */
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
 /* Media query for medium screens and up */
@@ -236,7 +240,7 @@ footer span {
 }
 
 kbd {
-  padding: 0.125rem 0.375rem; /* Replaces px-1.5 py-0.5 */
+  padding: 0.125rem 0.375rem; /*Replaces px-1.5 py-0.5 */
   font-size: 0.75rem; /* Replaces text-xs */
   font-weight: 600; /* Replaces font-semibold */
   color: #1f2937; /* Replaces text-gray-800 */
