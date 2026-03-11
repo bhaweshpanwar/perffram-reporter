@@ -1,5 +1,5 @@
 ======================================
-Interactive Performance Chart — Design
+FRONTEND DESIGN DOCUMENT
 ======================================
 
 .. contents:: Table of Contents
@@ -85,22 +85,6 @@ The following module-level variables are shared across functions:
      - Axis generators and line generator initialized in ``renderChart()``
        and reused in ``updateYAxis()`` and ``redrawChart()``.
 
-Initialization Sequence
-=======================
-
-The application boots when the DOM is fully loaded:
-
-.. code-block:: text
-
-   DOMContentLoaded
-     └─> cacheDOMElements()       — cache DOM references into DOMElements
-     └─> transformChartData()     — flatten RESULTS_DATA into allData
-     └─> d3.rollup()              — compute scaleDataCounts
-     └─> initializeApp()
-           └─> setupFilterControls()   — populate scale dropdown, init branches
-           └─> setupEventListeners()   — attach all UI event handlers
-           └─> applyFiltersAndRender() — first render
-           └─> updateLastUpdated()     — display most recent data date
 
 Data Layer
 ==========
