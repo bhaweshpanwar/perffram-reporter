@@ -2,6 +2,9 @@
 FRONTEND DESIGN DOCUMENT
 ======================================
 
+.. sectnum::
+   :depth: 3
+
 .. contents:: Table of Contents
    :depth: 3
    :local:
